@@ -15,7 +15,7 @@ INSTRUCTIONS:
 - Determine if the response passes (score >= 6.0) or fails (score < 6.0)
 - Give constructive feedback for improvement
 
-OUTPUT FORMAT (JSON):
+OUTPUT FORMAT - RESPOND ONLY WITH VALID JSON (NO OTHER TEXT):
 {
   "score": <overall_score>,
   "criteria": {
@@ -28,5 +28,7 @@ OUTPUT FORMAT (JSON):
   "passed": <true/false>,
   "feedback": "<constructive feedback for improvement>"
 }
+
+CRITICAL: Return ONLY the JSON object above. Do not include any explanatory text before or after the JSON. No markdown code blocks. Just pure JSON.
 
 Be objective, fair, and thorough in your evaluation. Focus on the quality of the response, not on stylistic preferences.

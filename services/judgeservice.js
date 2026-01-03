@@ -36,7 +36,28 @@ async function judge_response({ evalRunId, testCaseId, modelResponseId }) {
             temperature: 0.3
         });
 
-        const parsed = JSON.parse(judgementResult.text);
+        // Extract JSON from response (handles cases where LLM adds extra text)
+        let parsed;
+        try {
+            // Try direct parse first
+            parsed = JSON.parse(judgementResult.text);
+        } catch (e) {
+            // Try to extract JSON from markdown code blocks or text
+            const jsonMatch = judgementResult.text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                parsed = JSON.parse(jsonMatch[0]);
+            } else {
+                // Fallback: create default judgement if no valid JSON found
+                console.error("Failed to parse judgement, using fallback:", judgementResult.text);
+                parsed = {
+                    score: 5.0,
+                    criteria: { accuracy: 5, relevance: 5, coherence: 5, completeness: 5 },
+                    reasoning: "Unable to parse judge response. Original response: " + judgementResult.text.substring(0, 200),
+                    passed: false,
+                    feedback: "Judge model did not return valid JSON format"
+                };
+            }
+        }
 
         const judgement = await Judgement.create({
             evalRunId: evalRunId,

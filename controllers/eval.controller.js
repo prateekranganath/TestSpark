@@ -98,8 +98,10 @@ async function runEvaluationBatch(evalRunId, testCaseIds, model) {
         for (const testCaseId of testCaseIds) {
             try {
                 await runEvaluation({ evalRunId, testCaseId, model });
+                console.log(`✓ Successfully evaluated test case ${testCaseId}`);
             } catch (error) {
-                console.error(`Failed to evaluate test case ${testCaseId}:`, error.message);
+                console.error(`✗ Failed to evaluate test case ${testCaseId}:`, error.message);
+                console.error('Full error:', error);
             }
         }
 
