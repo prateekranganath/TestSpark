@@ -6,7 +6,10 @@ import {
     getEvalRunStatus,
     getEvalRunResults,
     getAllEvalRuns,
-    deleteEvalRun
+    deleteEvalRun,
+    getBenchmarkStatistics,
+    testModelWithBenchmark,
+    comprehensiveModelTest
 } from '../controllers/eval.controller.js';
 
 const router = express.Router();
@@ -23,11 +26,20 @@ router.get('/runs/:evalRunId', getEvalRunStatus);
 // Get evaluation run results
 router.get('/runs/:evalRunId/results', getEvalRunResults);
 
+// Get benchmark statistics
+router.get('/runs/:evalRunId/benchmark-stats', getBenchmarkStatistics);
+
 // Start an evaluation run
 router.post('/runs/:evalRunId/start', startEvalRun);
 
 // Run single evaluation
 router.post('/evaluate', runSingleEvaluation);
+
+// Test model with complete benchmark validation
+router.post('/test-benchmark', testModelWithBenchmark);
+
+// Comprehensive test: Generated cases + All benchmarks
+router.post('/comprehensive-test', comprehensiveModelTest);
 
 // Delete evaluation run
 router.delete('/runs/:evalRunId', deleteEvalRun);

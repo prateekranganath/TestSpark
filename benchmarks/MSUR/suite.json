@@ -1,0 +1,63 @@
+{
+  "name": "MSUR",
+  "full_name": "Mathematical Sciences Undergraduate Research",
+  "capability": "formal_mathematical_reasoning",
+  "benchmark_type": "open_ended",
+
+  "domains": [
+    "number_theory",
+    "real_analysis",
+    "linear_algebra",
+    "abstract_algebra",
+    "topology",
+    "combinatorics",
+    "probability_theory",
+    "graph_theory"
+  ],
+
+  "difficulty_levels": ["medium", "hard", "expert"],
+
+  "answer_type": "free_form_mathematical_reasoning",
+
+  "evaluation": {
+    "requires_llm_judge": true,
+    "primary_validator": "msurProofValidator",
+    "secondary_validators": [
+      "mathSymbolNormalizer",
+      "logicStructureChecker"
+    ],
+    "partial_credit": true,
+    "explanation_required": true,
+    "judge_guidelines": {
+      "required_properties": [
+        "logical correctness",
+        "clear reasoning steps",
+        "valid use of mathematical definitions",
+        "absence of false statements"
+      ],
+      "penalties": [
+        "missing justification",
+        "circular reasoning",
+        "hand-wavy arguments",
+        "incorrect theorems"
+      ]
+    }
+  },
+
+  "scoring": {
+    "per_question": 1,
+    "pass_threshold": 0.5,
+    "aggregation": "average_judge_score",
+    "rubric": {
+      "0.0": "Incorrect or invalid reasoning",
+      "0.5": "Partially correct with gaps or unclear logic",
+      "1.0": "Fully correct and well-justified solution"
+    }
+  },
+
+  "metadata": {
+    "source": "MSUR-style synthetic benchmark",
+    "inspiration": "Undergraduate research-level mathematics problems",
+    "notes": "Evaluation focuses on proof validity and reasoning quality rather than final results."
+  }
+}

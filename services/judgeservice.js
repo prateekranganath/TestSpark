@@ -15,7 +15,7 @@ const JUDGE_PROMPT = fs.readFileSync(
     "utf-8"
 );
 
-async function judge_response({ evalRunId, testCaseId, modelResponseId }) {
+async function judge_response({ evalRunId, testCaseId, modelResponseId, benchmarkValidation }) {
     try {
         const testCaseData = await TestCase.findById(testCaseId);
         const modelResponseData = await ModelResponse.findById(modelResponseId);
@@ -59,7 +59,8 @@ async function judge_response({ evalRunId, testCaseId, modelResponseId }) {
             }
         }
 
-        const judgement = await Judgement.create({
+        // Prepare judgement data
+        const judgementData = {
             evalRunId: evalRunId,
             modelResponseId: modelResponseId,
             testCaseId: testCaseId,
@@ -69,14 +70,37 @@ async function judge_response({ evalRunId, testCaseId, modelResponseId }) {
             criteria: parsed.criteria,
             passed: parsed.passed,
             feedback: parsed.feedback
-        });
+        };
+
+        // Add benchmark evaluation if present
+        if (benchmarkValidation) {
+            judgementData.benchmarkEvaluation = {
+                benchmarkType: testCaseData.metadata?.benchmarkType || null,
+                validator: benchmarkValidation.validator,
+                category: benchmarkValidation.category,
+                pass: benchmarkValidation.pass,
+                score: benchmarkValidation.score,
+                confidence: benchmarkValidation.confidence,
+                severity: benchmarkValidation.severity,
+                explanation: benchmarkValidation.explanation,
+                source: benchmarkValidation.source
+            };
+            
+            // Override general judgement if benchmark validation failed
+            if (benchmarkValidation.pass === false) {
+                judgementData.passed = false;
+                judgementData.feedback = `Benchmark validation failed: ${JSON.stringify(benchmarkValidation.explanation)}`;
+            }
+        }
+
+        const judgement = await Judgement.create(judgementData);
 
         // Update eval run metrics
         await EvalRun.findByIdAndUpdate(evalRunId, {
             $inc: {
                 'metrics.completed': 1,
-                'metrics.passed': parsed.passed ? 1 : 0,
-                'metrics.failed': parsed.passed ? 0 : 1
+                'metrics.passed': judgementData.passed ? 1 : 0,
+                'metrics.failed': judgementData.passed ? 0 : 1
             }
         });
 

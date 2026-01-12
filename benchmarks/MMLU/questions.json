@@ -1,0 +1,82 @@
+[
+  {
+    "id": "MMLU-H-01",
+    "domain": "mathematics",
+    "subcategory": "linear algebra",
+    "question": "Let A be a 3×3 real matrix such that A^2 = A and rank(A) = 2. What is the trace of A?",
+    "answer": 2,
+    "difficulty": "hard",
+    "evaluation_type": "exact_match",
+    "solution_outline": "An idempotent matrix has eigenvalues 0 or 1. Rank equals number of 1s, and trace equals sum of eigenvalues."
+  },
+  {
+    "id": "MMLU-H-02",
+    "domain": "physics",
+    "subcategory": "classical mechanics",
+    "question": "A particle moves in one dimension under the potential V(x) = kx^4. Which of the following best describes the dependence of the oscillation period T on the total energy E?",
+    "answer": "T ∝ E^(-1/4)",
+    "difficulty": "hard",
+    "evaluation_type": "expression_match",
+    "solution_outline": "Use dimensional analysis or compute T = ∫ dx / v(x); velocity scales as E^(1/2) and turning point as E^(1/4)."
+  },
+  {
+    "id": "MMLU-H-03",
+    "domain": "computer science",
+    "subcategory": "algorithms",
+    "question": "What is the tightest asymptotic worst-case time complexity for finding the median of an unsorted array of n distinct elements?",
+    "answer": "O(n)",
+    "difficulty": "hard",
+    "evaluation_type": "string_match",
+    "solution_outline": "The median can be found using the deterministic linear-time selection algorithm (Median of Medians)."
+  },
+  {
+    "id": "MMLU-H-04",
+    "domain": "economics",
+    "subcategory": "game theory",
+    "question": "In a zero-sum game, what property must the payoff matrix satisfy for a pure-strategy Nash equilibrium to exist?",
+    "answer": "Existence of a saddle point",
+    "difficulty": "hard",
+    "evaluation_type": "string_match",
+    "solution_outline": "A pure-strategy equilibrium exists iff the maximin equals the minimax value."
+  },
+  {
+    "id": "MMLU-H-05",
+    "domain": "statistics",
+    "subcategory": "estimation theory",
+    "question": "An estimator θ̂ is unbiased and achieves the Cramér–Rao lower bound. What does this imply about the estimator?",
+    "answer": "It is efficient",
+    "difficulty": "hard",
+    "evaluation_type": "string_match",
+    "solution_outline": "Achieving the CRLB implies minimum variance among unbiased estimators."
+  },
+  {
+    "id": "MMLU-H-06",
+    "domain": "mathematics",
+    "subcategory": "real analysis",
+    "question": "Let f be differentiable on ℝ and satisfy |f'(x)| ≤ 3 for all x. What is the maximum possible value of |f(5) − f(1)|?",
+    "answer": 12,
+    "difficulty": "hard",
+    "evaluation_type": "exact_match",
+    "solution_outline": "Apply the Mean Value Theorem: |f(b) − f(a)| ≤ M|b − a|."
+  },
+  {
+    "id": "MMLU-H-07",
+    "domain": "philosophy",
+    "subcategory": "epistemology",
+    "question": "Which philosophical position holds that knowledge is justified true belief plus an additional condition to avoid counterexamples?",
+    "answer": "Reliabilism",
+    "difficulty": "hard",
+    "evaluation_type": "string_match",
+    "solution_outline": "Reliabilism addresses Gettier problems by requiring a reliable belief-forming process."
+  },
+  {
+    "id": "MMLU-H-08",
+    "domain": "machine learning",
+    "subcategory": "theory",
+    "question": "Increasing model capacity while keeping training data fixed typically reduces training error but increases which component of generalization error?",
+    "answer": "Variance",
+    "difficulty": "hard",
+    "evaluation_type": "string_match",
+    "solution_outline": "This is the bias–variance tradeoff."
+  }
+]

@@ -43,6 +43,52 @@ const judgementSchema = new mongoose.Schema({
     feedback: {
         type: String,
         default: ''
+    },
+    // Benchmark-specific evaluation results
+    benchmarkEvaluation: {
+        benchmarkType: {
+            type: String,
+            enum: ['aime', 'mmlu', 'msur', null],
+            default: null
+        },
+        validator: {
+            type: String,
+            default: null
+        },
+        category: {
+            type: String,
+            default: null
+        },
+        pass: {
+            type: Boolean,
+            default: null
+        },
+        score: {
+            type: Number,
+            min: 0,
+            max: 1,
+            default: null
+        },
+        confidence: {
+            type: Number,
+            min: 0,
+            max: 1,
+            default: null
+        },
+        severity: {
+            type: String,
+            enum: ['easy', 'medium', 'hard', null],
+            default: null
+        },
+        explanation: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null
+        },
+        source: {
+            type: String,
+            enum: ['validator', 'judge_model', null],
+            default: null
+        }
     }
 }, { timestamps: true });
 

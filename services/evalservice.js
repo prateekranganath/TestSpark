@@ -3,6 +3,9 @@ import { judge_response } from "./judgeservice.js";
 import TestCase from "../models/testcase.js";
 import ModelResponse from "../models/modelresponse.js";
 import EvalRun from "../models/evalrun.js";
+import aimevalidator from "../validators/output/aimevalidator.js";
+import { mmluValidator } from "../validators/output/mmluvalidator.js";
+import { msurValidator } from "../validators/output/mmsurvalidator.js";
 
 async function runEvaluation({ evalRunId, testCaseId, model }) {
     try {
@@ -43,15 +46,64 @@ async function runEvaluation({ evalRunId, testCaseId, model }) {
         });
         await modelResponse.save();
 
+        // Determine if this is a benchmark evaluation
+        const benchmarkType = testCaseData.metadata?.benchmarkType;
+        let benchmarkValidation = null;
+
+        if (benchmarkType) {
+            // Run benchmark-specific validation
+            benchmarkValidation = await runBenchmarkValidation(
+                benchmarkType, 
+                modelResponse, 
+                testCaseData
+            );
+        }
+
         const judgement = await judge_response({ 
             evalRunId, 
             testCaseId, 
-            modelResponseId: modelResponse._id 
+            modelResponseId: modelResponse._id,
+            benchmarkValidation 
         });
 
         return { modelResponse, judgement };
     } catch (error) {
         throw new Error(`Evaluation failed: ${error.message}`);
+    }
+}
+
+async function runBenchmarkValidation(benchmarkType, modelResponse, testCase) {
+    try {
+        switch (benchmarkType.toLowerCase()) {
+            case 'aime':
+                return aimevalidator(modelResponse, {
+                    expected_answer: testCase.expectedOutput || testCase.metadata?.answer
+                });
+            
+            case 'mmlu':
+                return await mmluValidator(modelResponse, {
+                    Question: testCase.prompt,
+                    ExpectedResponse: testCase.expectedOutput || testCase.metadata?.answer
+                });
+            
+            case 'msur':
+                return await msurValidator(modelResponse, {
+                    Question: testCase.prompt,
+                    ExpectedResponse: testCase.expectedOutput || testCase.metadata?.expected_answer
+                });
+            
+            default:
+                console.warn(`Unknown benchmark type: ${benchmarkType}`);
+                return null;
+        }
+    } catch (error) {
+        console.error(`Benchmark validation failed for ${benchmarkType}:`, error.message);
+        return {
+            validator: `${benchmarkType}Validator`,
+            pass: false,
+            error: error.message,
+            explanation: `Validation error: ${error.message}`
+        };
     }
 }
 

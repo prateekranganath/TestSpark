@@ -30,7 +30,21 @@ const testCaseSchema = new mongoose.Schema({
     metadata: {
         difficulty: String,
         category: String,
-        tags: [String]
+        tags: [String],
+        // Benchmark-specific fields
+        benchmarkType: {
+            type: String,
+            enum: ['aime', 'mmlu', 'msur', null],
+            default: null
+        },
+        answer: mongoose.Schema.Types.Mixed,
+        expected_answer: mongoose.Schema.Types.Mixed,
+        domain: String,
+        subcategory: String,
+        topic: String,
+        evaluation_type: String,
+        task_type: String,
+        solution_outline: String
     }
 }, { timestamps: true });
 

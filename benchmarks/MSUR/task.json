@@ -1,0 +1,90 @@
+[
+  {
+    "id": "MSUR-01",
+    "domain": "mathematics",
+    "subcategory": "number theory",
+    "task_type": "proof",
+    "question": "Prove that there are infinitely many prime numbers congruent to 1 modulo 4.",
+    "expected_answer": "A valid proof using contradiction or Dirichlet's theorem–style reasoning",
+    "difficulty": "hard",
+    "evaluation_type": "llm_judged",
+    "solution_outline": "Assume finitely many such primes and construct a number of the form 4k+1 whose prime divisors contradict the assumption."
+  },
+  {
+    "id": "MSUR-02",
+    "domain": "mathematics",
+    "subcategory": "real analysis",
+    "task_type": "counterexample",
+    "question": "Give an example of a function that is continuous everywhere but differentiable nowhere.",
+    "expected_answer": "A specific valid function such as the Weierstrass function",
+    "difficulty": "hard",
+    "evaluation_type": "llm_judged",
+    "solution_outline": "Construct a uniformly convergent series of functions with increasingly oscillatory behavior."
+  },
+  {
+    "id": "MSUR-03",
+    "domain": "mathematics",
+    "subcategory": "linear algebra",
+    "task_type": "construction",
+    "question": "Construct a 3×3 real matrix that is not diagonalizable but has only real eigenvalues.",
+    "expected_answer": "A defective matrix with a repeated eigenvalue",
+    "difficulty": "medium",
+    "evaluation_type": "llm_judged",
+    "solution_outline": "Use a Jordan block with real eigenvalues and insufficient eigenvectors."
+  },
+  {
+    "id": "MSUR-04",
+    "domain": "mathematics",
+    "subcategory": "abstract algebra",
+    "task_type": "proof",
+    "question": "Prove that every finite integral domain is a field.",
+    "expected_answer": "A correct proof using injectivity of multiplication",
+    "difficulty": "medium",
+    "evaluation_type": "llm_judged",
+    "solution_outline": "Show that multiplication by a nonzero element is injective and hence surjective."
+  },
+  {
+    "id": "MSUR-05",
+    "domain": "mathematics",
+    "subcategory": "topology",
+    "task_type": "reasoning",
+    "question": "Is every continuous bijection from a compact space to a Hausdorff space a homeomorphism? Justify your answer.",
+    "expected_answer": "Yes, with justification",
+    "difficulty": "hard",
+    "evaluation_type": "llm_judged",
+    "solution_outline": "Use compactness and the fact that continuous bijections from compact to Hausdorff spaces are closed maps."
+  },
+  {
+    "id": "MSUR-06",
+    "domain": "mathematics",
+    "subcategory": "combinatorics",
+    "task_type": "derivation",
+    "question": "Derive a recurrence relation for the number of binary strings of length n with no two consecutive ones.",
+    "expected_answer": "A Fibonacci-type recurrence",
+    "difficulty": "medium",
+    "evaluation_type": "llm_judged",
+    "solution_outline": "Condition on the first bit and count valid continuations."
+  },
+  {
+    "id": "MSUR-07",
+    "domain": "mathematics",
+    "subcategory": "probability theory",
+    "task_type": "analysis",
+    "question": "Show that the expected number of fixed points in a random permutation of n elements is 1.",
+    "expected_answer": "A correct expectation-based argument",
+    "difficulty": "medium",
+    "evaluation_type": "llm_judged",
+    "solution_outline": "Define indicator variables for each element being fixed and apply linearity of expectation."
+  },
+  {
+    "id": "MSUR-08",
+    "domain": "mathematics",
+    "subcategory": "graph theory",
+    "task_type": "proof_or_counterexample",
+    "question": "Is every bipartite graph planar? Prove or provide a counterexample.",
+    "expected_answer": "A counterexample such as K₃,₃",
+    "difficulty": "medium",
+    "evaluation_type": "llm_judged",
+    "solution_outline": "Recall Kuratowski’s theorem and properties of bipartite graphs."
+  }
+]

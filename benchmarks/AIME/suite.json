@@ -1,0 +1,59 @@
+{
+  "name": "MMLU",
+  "full_name": "Massive Multitask Language Understanding",
+  "capability": "multidomain_reasoning_and_knowledge",
+  "benchmark_type": "hybrid",
+
+  "domains": [
+    "mathematics",
+    "physics",
+    "computer_science",
+    "economics",
+    "statistics",
+    "philosophy",
+    "machine_learning"
+  ],
+
+  "difficulty_levels": ["medium", "hard", "expert"],
+
+  "answer_types": [
+    "integer",
+    "string",
+    "symbolic_expression",
+    "short_explanation"
+  ],
+
+  "evaluation": {
+    "requires_llm_judge": true,
+    "primary_validator": "mmluPrimaryValidator",
+    "secondary_validators": [
+      "stringNormalizer",
+      "expressionEquivalenceChecker"
+    ],
+    "partial_credit": false,
+    "explanation_required": false,
+    "judge_guidelines": {
+      "focus": [
+        "conceptual correctness",
+        "domain knowledge accuracy"
+      ],
+      "ignore": [
+        "verbosity",
+        "stylistic differences"
+      ]
+    }
+  },
+
+  "scoring": {
+    "per_question": 1,
+    "pass_threshold": 0.6,
+    "aggregation": "accuracy",
+    "per_domain_breakdown": true
+  },
+
+  "metadata": {
+    "source": "MMLU-style synthetic benchmark",
+    "inspiration": "Multi-disciplinary expert-level tasks",
+    "notes": "Answers may be symbolic or conceptual. Robust normalization and LLM-based judging recommended."
+  }
+}
