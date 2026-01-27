@@ -7,7 +7,7 @@ import aimevalidator from "../validators/output/aimevalidator.js";
 import { mmluValidator } from "../validators/output/mmluvalidator.js";
 import { msurValidator } from "../validators/output/mmsurvalidator.js";
 
-async function runEvaluation({ evalRunId, testCaseId, model }) {
+async function runEvaluation({ evalRunId, testCaseId, model, client, parameters }) {
     try {
         const testCaseData = await TestCase.findById(testCaseId);
         if (!testCaseData) {
@@ -22,10 +22,16 @@ async function runEvaluation({ evalRunId, testCaseId, model }) {
         const prompt = testCaseData.prompt;
         const startTime = Date.now();
 
+        // Use llm_call which internally uses adapter
+        const modelName = model || evalRun.modelUnderTest.name;
+        const temperature = parameters?.temperature || evalRun.configuration?.temperature || 0.7;
+        
         const response = await llm_call({
             messages: [{ role: "user", content: prompt }],
-            model: model || evalRun.modelUnderTest.name,
-            temperature: evalRun.configuration.temperature
+            model: modelName,
+            temperature: temperature,
+            client: client,
+            ...parameters // Spread any additional parameters
         });
 
         const responseTime = Date.now() - startTime;

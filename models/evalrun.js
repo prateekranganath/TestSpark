@@ -31,7 +31,8 @@ const evalRunSchema = new mongoose.Schema({
     judgeModel: {
         name: {
             type: String,
-            required: true
+            required: true,
+            default: 'gpt-4'  // Server-controlled, not user-configurable
         },
         version: {
             type: String,

@@ -1,10 +1,12 @@
 # LLM Evaluation Engine
 
-A comprehensive Node.js backend for evaluating Large Language Models (LLMs) using automated test case generation, benchmark testing, and AI-powered judging.
+A comprehensive Node.js backend for evaluating Large Language Models (LLMs) using automated test case generation, benchmark testing, and AI-powered judging. **Now with universal model adapter support for testing any model from any provider!**
 
 ## 🎯 Features
 
 ### Core Capabilities
+- **Universal Model Adapter**: Test ANY model from ANY API provider (OpenAI, Anthropic, Together AI, Ollama, etc.)
+- **Flexible API Integration**: Works with any OpenAI-compatible API client
 - **Automated Test Case Generation**: Generate test cases with ambiguity, contradiction, and negation patterns
 - **Benchmark Testing**: Standardized evaluation across AIME, MMLU, and MSUR benchmarks
 - **Comprehensive Model Testing**: Single endpoint to test models on generated cases + all benchmarks
@@ -19,6 +21,33 @@ A comprehensive Node.js backend for evaluating Large Language Models (LLMs) usin
 - **MMLU** (Massive Multitask Language Understanding): Multi-domain knowledge with LLM-judged validation
 - **MSUR** (Mathematical Sciences Undergraduate Research): Proof writing with rubric-based grading
 
+## 🚀 Model Adapter
+
+The **universal adapter** allows you to evaluate any model with custom configuration:
+
+### Quick Start
+```javascript
+// Test any model via REST API
+POST /api/eval/test-custom-model
+{
+  "modelName": "your-model-name",
+  "testCaseId": "test-case-id",
+  "parameters": {
+    "temperature": 0.7,
+    "max_tokens": 1000
+  }
+}
+```
+
+### Supported Features
+- ✅ Multiple message formats (array, string, object)
+- ✅ Custom API clients (OpenAI, Together AI, Azure, etc.)
+- ✅ Flexible parameters (temperature, max_tokens, top_p, etc.)
+- ✅ Standardized response format
+- ✅ Full benchmark validation support
+
+📖 **[Complete Adapter Documentation](./ADAPTER_USAGE.md)**
+
 ## 🏗️ Architecture
 
 ```
@@ -31,7 +60,7 @@ TESTSPARK/
 │   ├── evalservice.js         # Evaluation orchestration + benchmark routing
 │   ├── generatorservice.js    # Test case generation
 │   ├── judgeservice.js        # Response judgement + benchmark integration
-│   └── llmservice.js          # LLM API interface
+│   └── llmservice.js          # LLM API interface + Universal Adapter
 ├── models/            # MongoDB schemas
 │   ├── evalrun.js
 │   ├── testcase.js            # Extended with benchmark metadata
@@ -46,6 +75,9 @@ TESTSPARK/
 │   ├── AIME/          # Math problems (problems.json)
 │   ├── MMLU/          # Multi-domain questions (questions.json)
 │   └── MSUR/          # Math research tasks (task.json)
+├── examples/          # Usage examples
+│   ├── adapterExamples.js     # Adapter function examples
+│   └── httpApiExamples.js     # HTTP API request examples
 ├── tools/             # Utility scripts
 │   ├── benchmarkLoader.js     # Load benchmark data to DB
 │   └── testBenchmarkIntegration.js
@@ -118,6 +150,34 @@ PASSING_SCORE=6.0
 ## 📚 API Documentation
 
 ### Quick Testing Endpoints
+
+#### Test Custom Model 🆕
+```bash
+POST /api/eval/test-custom-model
+```
+Test any model from any provider with custom configuration. Supports flexible parameters and custom API clients.
+
+**Body:**
+```json
+{
+  "modelName": "your-model-name",
+  "testCaseId": "test-case-id",
+  "parameters": {
+    "temperature": 0.7,
+    "max_tokens": 1000,
+    "top_p": 0.9
+  },
+  "judgeModel": "gpt-4"
+}
+```
+
+**Response:** Complete test results with model response, judgement, benchmark validation, and performance metrics.
+
+**Use Cases:**
+- Test any OpenAI-compatible model
+- Custom parameter tuning
+- Different API providers (Together AI, Anthropic, etc.)
+- Quick validation before full evaluation
 
 #### Test Single Benchmark
 ```bash
@@ -552,3 +612,352 @@ The README has been comprehensively updated with all benchmark and comprehensive
 8. **When to use each endpoint** based on needs
 
 The README now provides a complete, production-ready overview while remaining concise and easy to scan!
+
+---
+
+## 🔌 Universal Model Adapter - Detailed Guide
+
+### Overview
+The adapter function allows you to test **any model** from **any API provider** with your evaluation framework. It provides a flexible, standardized interface for model testing.
+
+### Adapter Architecture
+
+Located in `services/llmservice.js`, the adapter handles:
+- Multiple input types (array, string, message object)
+- Any OpenAI-compatible API client
+- Custom parameters and configuration
+- Standardized response format
+
+### Message Format Support
+
+The adapter accepts three message formats:
+
+#### 1. Array Format (Standard)
+```javascript
+{
+  messages: [
+    { role: "system", content: "You are a helpful assistant" },
+    { role: "user", content: "Hello!" }
+  ]
+}
+```
+
+#### 2. String Format (Auto-converts to user message)
+```javascript
+{
+  messages: "What is 2+2?"
+}
+```
+
+#### 3. Single Message Object
+```javascript
+{
+  messages: { role: "user", content: "Explain quantum computing" }
+}
+```
+
+### Adapter Function Reference
+
+```javascript
+async function adapter(client, model, parameters)
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `client` | Object | No | openai | OpenAI-compatible API client |
+| `model` | String | No | "llama3.2" | Model name to use |
+| `parameters` | Object | Yes | - | Request parameters |
+
+**Parameters Object:**
+```javascript
+{
+  messages: Array|String|Object,  // Required - conversation messages
+  temperature: Number,             // Optional - 0.0 to 2.0
+  max_tokens: Number,             // Optional - max response length
+  top_p: Number,                  // Optional - nucleus sampling
+  frequency_penalty: Number,      // Optional - 0.0 to 2.0
+  presence_penalty: Number        // Optional - 0.0 to 2.0
+}
+```
+
+**Response Format:**
+```javascript
+{
+  text: String,        // The model's response content
+  usage: {
+    prompt_tokens: Number,
+    completion_tokens: Number,
+    total_tokens: Number
+  }
+}
+```
+
+### Supported API Providers
+
+The adapter works with any OpenAI-compatible API:
+- ✅ **Ollama** (default, configured at http://localhost:11434/v1)
+- ✅ **OpenAI** (GPT-3.5, GPT-4, etc.)
+- ✅ **Together AI** (Mixtral, LLaMA, etc.)
+- ✅ **Azure OpenAI** (Enterprise deployments)
+- ✅ **Anthropic** (Claude with wrapper)
+- ✅ **Any custom provider** with OpenAI-compatible API
+
+### Configuration Examples
+
+#### Default Ollama (Pre-configured)
+```javascript
+// Already configured - just use model name
+POST /api/eval/test-custom-model
+{
+  "modelName": "llama3.2",
+  "testCaseId": "YOUR_TEST_CASE_ID"
+}
+```
+
+#### Together AI Setup
+```javascript
+import OpenAI from 'openai';
+
+const togetherClient = new OpenAI({
+  baseURL: 'https://api.together.xyz/v1',
+  apiKey: process.env.TOGETHER_API_KEY
+});
+
+// Use in adapter
+adapter(togetherClient, 'mistralai/Mixtral-8x7B-Instruct-v0.1', {
+  messages: 'Hello',
+  temperature: 0.7
+});
+```
+
+#### Azure OpenAI Setup
+```javascript
+const azureClient = new OpenAI({
+  baseURL: process.env.AZURE_OPENAI_ENDPOINT,
+  apiKey: process.env.AZURE_OPENAI_KEY,
+  defaultHeaders: {
+    'api-key': process.env.AZURE_OPENAI_KEY
+  }
+});
+```
+
+#### OpenAI Setup
+```javascript
+const openaiClient = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+```
+
+### Usage Examples
+
+#### Example 1: Quick Test with Default Settings
+```bash
+curl -X POST http://localhost:3000/api/eval/test-custom-model \
+  -H "Content-Type: application/json" \
+  -d '{
+    "modelName": "llama3.2",
+    "testCaseId": "YOUR_TEST_CASE_ID"
+  }'
+```
+
+#### Example 2: Test with Custom Parameters
+```bash
+curl -X POST http://localhost:3000/api/eval/test-custom-model \
+  -H "Content-Type: application/json" \
+  -d '{
+    "modelName": "gpt-3.5-turbo",
+    "testCaseId": "YOUR_TEST_CASE_ID",
+    "parameters": {
+      "temperature": 0.5,
+      "max_tokens": 500,
+      "top_p": 0.9
+    }
+  }'
+```
+
+#### Example 3: Full Evaluation with Custom Model
+```javascript
+// Step 1: Create eval run
+const evalRun = await fetch('http://localhost:3000/api/eval/runs', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    runName: 'Custom Model Evaluation',
+    modelUnderTest: {
+      name: 'my-custom-model',
+      version: 'v1.0'
+    },
+    judgeModel: {
+      name: 'gpt-4',
+      version: 'latest'
+    },
+    testCaseIds: ['test1', 'test2', 'test3'],
+    configuration: { temperature: 0.7 }
+  })
+});
+
+// Step 2: Start with custom parameters
+await fetch(`http://localhost:3000/api/eval/runs/${evalRun.data._id}/start`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    parameters: {
+      temperature: 0.8,
+      max_tokens: 1500,
+      top_p: 0.9
+    }
+  })
+});
+```
+
+#### Example 4: Compare Multiple Models
+```javascript
+const models = ['llama3.2', 'mistral', 'phi3'];
+const testCaseId = 'YOUR_TEST_CASE_ID';
+
+for (const model of models) {
+  const response = await fetch('http://localhost:3000/api/eval/test-custom-model', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      modelName: model,
+      testCaseId: testCaseId,
+      parameters: { temperature: 0.7 }
+    })
+  });
+  
+  const result = await response.json();
+  console.log(`${model}: Score ${result.data.judgement.score}/10`);
+}
+```
+
+### Python Integration Example
+
+```python
+import requests
+
+def test_custom_model(model_name, test_case_id, parameters=None):
+    url = "http://localhost:3000/api/eval/test-custom-model"
+    payload = {
+        "modelName": model_name,
+        "testCaseId": test_case_id,
+        "parameters": parameters or {}
+    }
+    
+    response = requests.post(url, json=payload)
+    return response.json()
+
+# Usage
+result = test_custom_model(
+    "llama3.2",
+    "test_case_id_here",
+    {"temperature": 0.8, "max_tokens": 1000}
+)
+print(f"Score: {result['data']['judgement']['score']}/10")
+print(f"Passed: {result['data']['judgement']['passed']}")
+```
+
+### JavaScript/Node.js Integration Example
+
+```javascript
+async function testCustomModel(modelName, testCaseId, parameters = {}) {
+  const response = await fetch('http://localhost:3000/api/eval/test-custom-model', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ modelName, testCaseId, parameters })
+  });
+  
+  return await response.json();
+}
+
+// Usage
+const result = await testCustomModel(
+  'llama3.2',
+  'test_case_id_here',
+  { temperature: 0.8, max_tokens: 1000 }
+);
+
+console.log(`Score: ${result.data.judgement.score}/10`);
+console.log(`Response: ${result.data.modelResponse.text}`);
+```
+
+### Environment Variables
+
+Add to your `.env` file:
+
+```bash
+# Default Ollama (already configured)
+OLLAMA_BASE_URL=http://localhost:11434/v1
+OLLAMA_API_KEY=ollama
+
+# Optional: Other providers
+TOGETHER_API_KEY=your_together_key
+ANTHROPIC_API_KEY=your_anthropic_key
+AZURE_OPENAI_ENDPOINT=your_azure_endpoint
+AZURE_OPENAI_KEY=your_azure_key
+OPENAI_API_KEY=your_openai_key
+
+# Judge model for evaluations
+JUDGE_MODEL=gpt-4
+```
+
+### Troubleshooting
+
+#### Error: "Parameters must include messages array"
+**Solution:** Ensure you pass a valid messages parameter in one of the supported formats (array, string, or object).
+
+#### Error: "Invalid messages format"
+**Solution:** Messages must be either:
+- Array: `[{role: "user", content: "text"}]`
+- String: `"text"`
+- Object: `{role: "user", content: "text"}`
+
+#### Error: "Adapter error: ..."
+**Solution:** Check:
+- Client is properly configured with correct baseURL and apiKey
+- Model name is correct for the provider
+- Network connectivity to API endpoint
+- API key has proper permissions
+
+#### Empty or null response
+**Solution:**
+- Verify model name spelling matches provider's model list
+- Check if model requires specific parameters
+- Ensure sufficient max_tokens
+- Review API provider's documentation
+
+### Best Practices
+
+1. **Error Handling**: Always wrap API calls in try-catch blocks
+2. **Rate Limiting**: Implement delays between requests for external APIs
+3. **Token Limits**: Set appropriate `max_tokens` based on your model
+4. **Temperature**: 
+   - Use 0.1-0.3 for deterministic tasks (math, code)
+   - Use 0.7-1.0 for creative tasks (writing, brainstorming)
+5. **Security**: Store API keys in environment variables, never in code
+6. **Testing**: Test with quick endpoint before running full evaluations
+
+### What's Included
+
+✅ **Core Implementation**
+- Universal adapter function (`services/llmservice.js`)
+- Updated evaluation service (`services/evalservice.js`)
+- Enhanced controller with testCustomModel (`controllers/eval.controller.js`)
+- New route: `POST /api/eval/test-custom-model`
+
+✅ **Features**
+- Multiple input format support
+- Flexible parameter configuration
+- Standardized response format
+- Full benchmark validation support
+- Backward compatibility maintained
+
+✅ **Benefits**
+- Test any OpenAI-compatible model
+- Switch between providers seamlessly
+- Custom configuration per request
+- Easy REST API integration
+- Provider agnostic architecture
+

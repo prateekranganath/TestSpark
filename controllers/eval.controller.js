@@ -12,26 +12,28 @@ export const createEvalRun = async (req, res) => {
             runName,
             description,
             modelUnderTest,
-            judgeModel,
             testCaseIds,
             configuration,
             tags
         } = req.body;
 
         // Validate required fields
-        if (!runName || !modelUnderTest?.name || !judgeModel?.name || !testCaseIds?.length) {
+        if (!runName || !modelUnderTest?.name || !testCaseIds?.length) {
             return res.status(400).json({
                 success: false,
-                message: "Missing required fields: runName, modelUnderTest.name, judgeModel.name, testCaseIds"
+                message: "Missing required fields: runName, modelUnderTest.name, testCaseIds"
             });
         }
 
-        // Create eval run
+        // Create eval run with server-controlled judge model
         const evalRun = await EvalRun.create({
             runName,
             description,
             modelUnderTest,
-            judgeModel,
+            judgeModel: {
+                name: process.env.JUDGE_MODEL || 'gpt-4',
+                version: 'latest'
+            },
             testCaseIds,
             configuration: configuration || {},
             tags: tags || [],
@@ -56,6 +58,7 @@ export const createEvalRun = async (req, res) => {
 export const startEvalRun = async (req, res) => {
     try {
         const { evalRunId } = req.params;
+        const { client, parameters } = req.body; // Accept custom client and parameters
 
         const evalRun = await EvalRun.findById(evalRunId);
         if (!evalRun) {
@@ -77,8 +80,14 @@ export const startEvalRun = async (req, res) => {
         evalRun.startTime = new Date();
         await evalRun.save();
 
-        // Run evaluations asynchronously
-        runEvaluationBatch(evalRunId, evalRun.testCaseIds, evalRun.modelUnderTest.name);
+        // Run evaluations asynchronously with custom client/parameters
+        runEvaluationBatch(
+            evalRunId, 
+            evalRun.testCaseIds, 
+            evalRun.modelUnderTest.name,
+            client,
+            parameters
+        );
 
         res.status(200).json({
             success: true,
@@ -94,11 +103,11 @@ export const startEvalRun = async (req, res) => {
 };
 
 // Helper function to run batch evaluations
-async function runEvaluationBatch(evalRunId, testCaseIds, model) {
+async function runEvaluationBatch(evalRunId, testCaseIds, model, client, parameters) {
     try {
         for (const testCaseId of testCaseIds) {
             try {
-                await runEvaluation({ evalRunId, testCaseId, model });
+                await runEvaluation({ evalRunId, testCaseId, model, client, parameters });
                 console.log(`✓ Successfully evaluated test case ${testCaseId}`);
             } catch (error) {
                 console.error(`✗ Failed to evaluate test case ${testCaseId}:`, error.message);
@@ -132,7 +141,7 @@ async function runEvaluationBatch(evalRunId, testCaseIds, model) {
 // Run single evaluation
 export const runSingleEvaluation = async (req, res) => {
     try {
-        const { evalRunId, testCaseId, model } = req.body;
+        const { evalRunId, testCaseId, model, client, parameters } = req.body;
 
         if (!evalRunId || !testCaseId) {
             return res.status(400).json({
@@ -141,7 +150,13 @@ export const runSingleEvaluation = async (req, res) => {
             });
         }
 
-        const result = await runEvaluation({ evalRunId, testCaseId, model });
+        const result = await runEvaluation({ 
+            evalRunId, 
+            testCaseId, 
+            model,
+            client,
+            parameters
+        });
 
         res.status(200).json({
             success: true,
@@ -492,8 +507,9 @@ export const testModelWithBenchmark = async (req, res) => {
         const { 
             modelName, 
             testCaseId, 
-            judgeModel,
-            temperature = 0.1 
+            temperature = 0.1,
+            client,
+            parameters
         } = req.body;
 
         // Validate required fields
@@ -525,7 +541,7 @@ export const testModelWithBenchmark = async (req, res) => {
                 version: 'latest'
             },
             judgeModel: {
-                name: judgeModel || process.env.JUDGE_MODEL || 'gpt-4',
+                name: process.env.JUDGE_MODEL || 'gpt-4',
                 version: 'latest'
             },
             testCaseIds: [testCaseId],
@@ -540,7 +556,9 @@ export const testModelWithBenchmark = async (req, res) => {
         const result = await runEvaluation({
             evalRunId: tempEvalRun._id,
             testCaseId: testCaseId,
-            model: modelName
+            model: modelName,
+            client,
+            parameters: parameters || { temperature }
         });
         const totalTime = Date.now() - startTime;
 
@@ -687,9 +705,10 @@ export const comprehensiveModelTest = async (req, res) => {
         const {
             modelName,
             userPrompt,
-            judgeModel,
             temperature = 0.1,
-            samplesPerBenchmark = 3
+            samplesPerBenchmark = 3,
+            client,
+            parameters
         } = req.body;
 
         // Validate required fields
@@ -742,7 +761,7 @@ export const comprehensiveModelTest = async (req, res) => {
             runName: `Comprehensive Test - ${modelName} - ${new Date().toISOString()}`,
             description: `Generated tests + All benchmarks test for: ${userPrompt.substring(0, 100)}`,
             modelUnderTest: { name: modelName, version: 'latest' },
-            judgeModel: { name: judgeModel || process.env.JUDGE_MODEL || 'gpt-4', version: 'latest' },
+            judgeModel: { name: process.env.JUDGE_MODEL || 'gpt-4', version: 'latest' },
             testCaseIds: [],
             configuration: { temperature },
             tags: ['comprehensive-test', 'generated', 'benchmarks'],
@@ -786,7 +805,9 @@ export const comprehensiveModelTest = async (req, res) => {
                 const result = await runEvaluation({
                     evalRunId: evalRun._id,
                     testCaseId: testCase._id,
-                    model: modelName
+                    model: modelName,
+                    client,
+                    parameters: parameters || { temperature }
                 });
 
                 const testType = testCase._id === parentTestCase._id ? 'original' : testCase.generationType;
@@ -854,17 +875,17 @@ export const comprehensiveModelTest = async (req, res) => {
 
         // Test AIME
         for (const testCase of aimeSamples) {
-            await testBenchmarkCase(testCase, 'aime', modelName, evalRun._id, results);
+            await testBenchmarkCase(testCase, 'aime', modelName, evalRun._id, results, client, parameters || { temperature });
         }
 
         // Test MMLU
         for (const testCase of mmluSamples) {
-            await testBenchmarkCase(testCase, 'mmlu', modelName, evalRun._id, results);
+            await testBenchmarkCase(testCase, 'mmlu', modelName, evalRun._id, results, client, parameters || { temperature });
         }
 
         // Test MSUR
         for (const testCase of msurSamples) {
-            await testBenchmarkCase(testCase, 'msur', modelName, evalRun._id, results);
+            await testBenchmarkCase(testCase, 'msur', modelName, evalRun._id, results, client, parameters || { temperature });
         }
 
         // Calculate benchmark accuracies
@@ -979,12 +1000,14 @@ export const comprehensiveModelTest = async (req, res) => {
 };
 
 // Helper function to test a benchmark case
-async function testBenchmarkCase(testCase, benchmarkType, modelName, evalRunId, results) {
+async function testBenchmarkCase(testCase, benchmarkType, modelName, evalRunId, results, client, parameters) {
     try {
         const result = await runEvaluation({
             evalRunId: evalRunId,
             testCaseId: testCase._id,
-            model: modelName
+            model: modelName,
+            client,
+            parameters
         });
 
         const benchEval = result.judgement.benchmarkEvaluation;
@@ -1148,4 +1171,120 @@ function identifyWeaknesses(results) {
 
     return weaknesses.length > 0 ? weaknesses : ['No significant weaknesses detected'];
 }
+
+// Test custom model endpoint - supports any model with custom client
+export const testCustomModel = async (req, res) => {
+    try {
+        const { 
+            modelName,
+            testCaseId,
+            client,
+            parameters
+        } = req.body;
+
+        // Validate required fields
+        if (!modelName || !testCaseId) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields: modelName, testCaseId"
+            });
+        }
+
+        // Fetch test case
+        const testCase = await TestCase.findById(testCaseId);
+        if (!testCase) {
+            return res.status(404).json({
+                success: false,
+                message: "Test case not found"
+            });
+        }
+
+        console.log(`🚀 Testing custom model: ${modelName}`);
+        console.log(`   Test Case: ${testCaseId}`);
+        console.log(`   Custom Client: ${client ? 'Yes' : 'Default'}`);
+        console.log(`   Benchmark: ${testCase.metadata?.benchmarkType || 'general'}`);
+
+        // Create a temporary eval run
+        const tempEvalRun = await EvalRun.create({
+            runName: `Custom Model Test - ${modelName} - ${Date.now()}`,
+            description: `Testing custom model ${modelName} with ${client ? 'custom' : 'default'} client`,
+            modelUnderTest: {
+                name: modelName,
+                version: parameters?.version || 'latest'
+            },
+            judgeModel: {
+                name: process.env.JUDGE_MODEL || 'gpt-4',
+                version: 'latest'
+            },
+            testCaseIds: [testCaseId],
+            configuration: { 
+                temperature: parameters?.temperature || 0.7,
+                customClient: !!client
+            },
+            tags: ['custom-model', 'api-test'],
+            metrics: { totalTestCases: 1 },
+            status: 'running'
+        });
+
+        // Run evaluation with custom adapter
+        const startTime = Date.now();
+        const result = await runEvaluation({
+            evalRunId: tempEvalRun._id,
+            testCaseId: testCaseId,
+            model: modelName,
+            client: client,
+            parameters: parameters || {}
+        });
+        const totalTime = Date.now() - startTime;
+
+        // Mark eval run as completed
+        await EvalRun.findByIdAndUpdate(tempEvalRun._id, {
+            status: 'completed',
+            endTime: new Date(),
+            duration: totalTime
+        });
+
+        // Build response
+        res.status(200).json({
+            success: true,
+            data: {
+                evalRunId: tempEvalRun._id,
+                testInfo: {
+                    testCaseId: testCaseId,
+                    prompt: testCase.prompt.substring(0, 200) + (testCase.prompt.length > 200 ? '...' : ''),
+                    benchmarkType: testCase.metadata?.benchmarkType || null
+                },
+                modelInfo: {
+                    name: modelName,
+                    customClient: !!client,
+                    parameters: parameters || {},
+                    responseTime: result.modelResponse.responseTime,
+                    tokensUsed: result.modelResponse.tokensUsed
+                },
+                modelResponse: {
+                    id: result.modelResponse._id,
+                    text: result.modelResponse.response,
+                    status: result.modelResponse.status
+                },
+                judgement: {
+                    id: result.judgement._id,
+                    score: result.judgement.score,
+                    passed: result.judgement.passed,
+                    reasoning: result.judgement.reasoning,
+                    benchmarkValidation: result.judgement.benchmarkEvaluation || null
+                },
+                totalTime: totalTime
+            },
+            message: `Successfully tested ${modelName} on test case`
+        });
+
+    } catch (error) {
+        console.error('Custom model test error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message,
+            error: error.stack
+        });
+    }
+};
 
