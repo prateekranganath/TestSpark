@@ -9,7 +9,8 @@ import {
     deleteEvalRun,
     getBenchmarkStatistics,
     testModelWithBenchmark,
-    comprehensiveModelTest
+    comprehensiveModelTest,
+    customDatasetEval
 } from '../controllers/eval.controller.js';
 
 const router = express.Router();
@@ -40,6 +41,9 @@ router.post('/test-benchmark', testModelWithBenchmark);
 
 // Comprehensive test: Generated cases + All benchmarks
 router.post('/comprehensive-test', comprehensiveModelTest);
+
+// Custom dataset evaluation
+router.post('/custom-dataset', customDatasetEval);
 
 // Delete evaluation run
 router.delete('/runs/:evalRunId', deleteEvalRun);

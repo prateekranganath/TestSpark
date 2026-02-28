@@ -4,7 +4,7 @@ import TestCase from "../models/testcase.js";
 // Generate test cases from a parent prompt
 export const generateTestCasesFromParent = async (req, res) => {
     try {
-        const { parentPromptId, types, perType } = req.body;
+        const { parentPromptId, types, perType, useJudgeSpace } = req.body;
 
         // Validate required fields
         if (!parentPromptId || !types || !Array.isArray(types) || types.length === 0) {
@@ -27,7 +27,8 @@ export const generateTestCasesFromParent = async (req, res) => {
         const generatedCases = await generateTestCases({
             parentPromptId,
             types,
-            perType: perType || 1
+            perType: perType || 1,
+            useJudgeSpace: useJudgeSpace !== false // Default true, only false if explicitly set
         });
 
         res.status(201).json({

@@ -1,9 +1,11 @@
 import { runEvaluation } from "../services/evalservice.js";
 import { generateTestCases } from "../services/generatorservice.js";
+import { llm_call } from "../services/llmservice.js";
 import EvalRun from "../models/evalrun.js";
 import TestCase from "../models/testcase.js";
 import ModelResponse from "../models/modelresponse.js";
 import Judgement from "../models/judgement.js";
+import CustomEval from "../models/customeval.js";
 
 // Create a new evaluation run
 export const createEvalRun = async (req, res) => {
@@ -58,7 +60,7 @@ export const createEvalRun = async (req, res) => {
 export const startEvalRun = async (req, res) => {
     try {
         const { evalRunId } = req.params;
-        const { client, parameters } = req.body; // Accept custom client and parameters
+        const { client, parameters, apiConfig, provider } = req.body; // Accept custom client, parameters, apiConfig, and provider
 
         const evalRun = await EvalRun.findById(evalRunId);
         if (!evalRun) {
@@ -80,13 +82,15 @@ export const startEvalRun = async (req, res) => {
         evalRun.startTime = new Date();
         await evalRun.save();
 
-        // Run evaluations asynchronously with custom client/parameters
+        // Run evaluations asynchronously with custom client/parameters/apiConfig
         runEvaluationBatch(
             evalRunId, 
             evalRun.testCaseIds, 
             evalRun.modelUnderTest.name,
             client,
-            parameters
+            parameters,
+            apiConfig,
+            provider
         );
 
         res.status(200).json({
@@ -103,11 +107,11 @@ export const startEvalRun = async (req, res) => {
 };
 
 // Helper function to run batch evaluations
-async function runEvaluationBatch(evalRunId, testCaseIds, model, client, parameters) {
+async function runEvaluationBatch(evalRunId, testCaseIds, model, client, parameters, apiConfig, provider) {
     try {
         for (const testCaseId of testCaseIds) {
             try {
-                await runEvaluation({ evalRunId, testCaseId, model, client, parameters });
+                await runEvaluation({ evalRunId, testCaseId, model, client, parameters, apiConfig, provider });
                 console.log(`✓ Successfully evaluated test case ${testCaseId}`);
             } catch (error) {
                 console.error(`✗ Failed to evaluate test case ${testCaseId}:`, error.message);
@@ -141,7 +145,7 @@ async function runEvaluationBatch(evalRunId, testCaseIds, model, client, paramet
 // Run single evaluation
 export const runSingleEvaluation = async (req, res) => {
     try {
-        const { evalRunId, testCaseId, model, client, parameters } = req.body;
+        const { evalRunId, testCaseId, model, client, parameters, apiConfig, provider } = req.body;
 
         if (!evalRunId || !testCaseId) {
             return res.status(400).json({
@@ -155,7 +159,9 @@ export const runSingleEvaluation = async (req, res) => {
             testCaseId, 
             model,
             client,
-            parameters
+            parameters,
+            apiConfig,
+            provider
         });
 
         res.status(200).json({
@@ -509,7 +515,9 @@ export const testModelWithBenchmark = async (req, res) => {
             testCaseId, 
             temperature = 0.1,
             client,
-            parameters
+            parameters,
+            apiConfig,
+            provider
         } = req.body;
 
         // Validate required fields
@@ -558,7 +566,9 @@ export const testModelWithBenchmark = async (req, res) => {
             testCaseId: testCaseId,
             model: modelName,
             client,
-            parameters: parameters || { temperature }
+            parameters: parameters || { temperature },
+            apiConfig,
+            provider
         });
         const totalTime = Date.now() - startTime;
 
@@ -708,7 +718,9 @@ export const comprehensiveModelTest = async (req, res) => {
             temperature = 0.1,
             samplesPerBenchmark = 3,
             client,
-            parameters
+            parameters,
+            apiConfig,
+            provider
         } = req.body;
 
         // Validate required fields
@@ -807,7 +819,9 @@ export const comprehensiveModelTest = async (req, res) => {
                     testCaseId: testCase._id,
                     model: modelName,
                     client,
-                    parameters: parameters || { temperature }
+                    parameters: parameters || { temperature },
+                    apiConfig,
+                    provider
                 });
 
                 const testType = testCase._id === parentTestCase._id ? 'original' : testCase.generationType;
@@ -875,17 +889,17 @@ export const comprehensiveModelTest = async (req, res) => {
 
         // Test AIME
         for (const testCase of aimeSamples) {
-            await testBenchmarkCase(testCase, 'aime', modelName, evalRun._id, results, client, parameters || { temperature });
+            await testBenchmarkCase(testCase, 'aime', modelName, evalRun._id, results, client, parameters || { temperature }, apiConfig, provider);
         }
 
         // Test MMLU
         for (const testCase of mmluSamples) {
-            await testBenchmarkCase(testCase, 'mmlu', modelName, evalRun._id, results, client, parameters || { temperature });
+            await testBenchmarkCase(testCase, 'mmlu', modelName, evalRun._id, results, client, parameters || { temperature }, apiConfig, provider);
         }
 
         // Test MSUR
         for (const testCase of msurSamples) {
-            await testBenchmarkCase(testCase, 'msur', modelName, evalRun._id, results, client, parameters || { temperature });
+            await testBenchmarkCase(testCase, 'msur', modelName, evalRun._id, results, client, parameters || { temperature }, apiConfig, provider);
         }
 
         // Calculate benchmark accuracies
@@ -1000,14 +1014,16 @@ export const comprehensiveModelTest = async (req, res) => {
 };
 
 // Helper function to test a benchmark case
-async function testBenchmarkCase(testCase, benchmarkType, modelName, evalRunId, results, client, parameters) {
+async function testBenchmarkCase(testCase, benchmarkType, modelName, evalRunId, results, client, parameters, apiConfig, provider) {
     try {
         const result = await runEvaluation({
             evalRunId: evalRunId,
             testCaseId: testCase._id,
             model: modelName,
             client,
-            parameters
+            parameters,
+            apiConfig,
+            provider
         });
 
         const benchEval = result.judgement.benchmarkEvaluation;
@@ -1287,4 +1303,359 @@ export const testCustomModel = async (req, res) => {
         });
     }
 };
+
+/**
+ * Custom Dataset Evaluation
+ * User provides their own dataset and we test the model on it
+ * POST /api/eval/custom-dataset
+ */
+export const customDatasetEval = async (req, res) => {
+    try {
+        console.log('Custom dataset evaluation started');
+        
+        // Extract and validate request body
+        const {
+            modelName,
+            provider,
+            apiConfig,
+            dataset,
+            evaluationType = 'exact_match',
+            temperature = 0.7,
+            max_tokens = 512
+        } = req.body;
+
+        // =========================================
+        // VALIDATION
+        // =========================================
+        
+        // Validate model name
+        if (!modelName || typeof modelName !== 'string' || modelName.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: "modelName is required",
+                example: {
+                    modelName: "microsoft/phi-2",
+                    provider: "hf-user-model",
+                    dataset: [{ input: "question", expected: "answer" }]
+                }
+            });
+        }
+
+        // Validate dataset structure
+        if (!dataset) {
+            return res.status(400).json({
+                success: false,
+                error: "dataset is required",
+                format: "Array of objects with 'input' and 'expected' fields",
+                example: [
+                    { input: "What is 2+2?", expected: "4" },
+                    { input: "Capital of France?", expected: "Paris" }
+                ]
+            });
+        }
+
+        if (!Array.isArray(dataset)) {
+            return res.status(400).json({
+                success: false,
+                error: "dataset must be an array",
+                received: typeof dataset
+            });
+        }
+
+        if (dataset.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: "dataset cannot be empty. Provide at least one test case."
+            });
+        }
+
+        // Hackathon limit: max 50 examples
+        if (dataset.length > 50) {
+            return res.status(400).json({
+                success: false,
+                error: `Dataset too large. Maximum 50 examples allowed. You provided ${dataset.length}.`,
+                tip: "For large datasets, contact us for enterprise solutions."
+            });
+        }
+
+        // Validate each dataset item
+        for (let i = 0; i < dataset.length; i++) {
+            const item = dataset[i];
+            
+            if (!item || typeof item !== 'object') {
+                return res.status(400).json({
+                    success: false,
+                    error: `Invalid item at index ${i}. Each item must be an object.`,
+                    receivedType: typeof item
+                });
+            }
+
+            if (!item.input || typeof item.input !== 'string') {
+                return res.status(400).json({
+                    success: false,
+                    error: `Missing or invalid 'input' field at index ${i}`,
+                    example: { input: "your question", expected: "expected answer" }
+                });
+            }
+
+            if (!item.expected || typeof item.expected !== 'string') {
+                return res.status(400).json({
+                    success: false,
+                    error: `Missing or invalid 'expected' field at index ${i}`,
+                    example: { input: "your question", expected: "expected answer" }
+                });
+            }
+        }
+
+        // Validate provider
+        if (provider && !['hf-user-model', 'openai', 'anthropic', 'together', 'custom'].includes(provider)) {
+            return res.status(400).json({
+                success: false,
+                error: "Invalid provider",
+                validProviders: ['hf-user-model', 'openai', 'anthropic', 'together', 'custom']
+            });
+        }
+
+        // Validate apiConfig if needed
+        if (provider !== 'hf-user-model' && !apiConfig) {
+            return res.status(400).json({
+                success: false,
+                error: "apiConfig is required when not using hf-user-model provider",
+                example: {
+                    apiConfig: {
+                        baseURL: "https://api.openai.com/v1",
+                        apiKey: "your-api-key"
+                    }
+                }
+            });
+        }
+
+        // Validate evaluation type
+        if (!['exact_match', 'contains', 'llm_judge'].includes(evaluationType)) {
+            return res.status(400).json({
+                success: false,
+                error: "Invalid evaluationType",
+                validTypes: ['exact_match', 'contains', 'llm_judge']
+            });
+        }
+
+        console.log(`Validated: Model=${modelName}, Provider=${provider || 'hf-user-model'}, Dataset size=${dataset.length}, EvalType=${evaluationType}`);
+
+        // =========================================
+        // PROCESS DATASET
+        // =========================================
+        
+        const results = [];
+        let passed = 0;
+        let failed = 0;
+        const startTime = Date.now();
+
+        for (let i = 0; i < dataset.length; i++) {
+            const item = dataset[i];
+            
+            try {
+                console.log(`Processing item ${i + 1}/${dataset.length}: ${item.input.substring(0, 50)}...`);
+                
+                // Call model with the input
+                const modelResponse = await llm_call({
+                    model: modelName,
+                    messages: [{ role: "user", content: item.input }],
+                    provider: provider,
+                    apiConfig: apiConfig,
+                    temperature: temperature,
+                    max_tokens: max_tokens
+                });
+
+                const actualOutput = modelResponse.text.trim();
+                const expectedOutput = item.expected.trim();
+                
+                // Evaluate based on type
+                let evaluation;
+                
+                if (evaluationType === 'exact_match') {
+                    // Case-insensitive exact match
+                    const match = actualOutput.toLowerCase() === expectedOutput.toLowerCase();
+                    evaluation = {
+                        passed: match,
+                        score: match ? 1.0 : 0.0,
+                        method: 'exact_match'
+                    };
+                    
+                } else if (evaluationType === 'contains') {
+                    // Check if expected is contained in actual
+                    const match = actualOutput.toLowerCase().includes(expectedOutput.toLowerCase());
+                    evaluation = {
+                        passed: match,
+                        score: match ? 1.0 : 0.0,
+                        method: 'contains'
+                    };
+                    
+                } else if (evaluationType === 'llm_judge') {
+                    // Use LLM judge for semantic evaluation
+                    evaluation = await evaluateWithLLMJudge(item.input, expectedOutput, actualOutput);
+                    evaluation.method = 'llm_judge';
+                }
+
+                // Update counters
+                if (evaluation.passed) {
+                    passed++;
+                } else {
+                    failed++;
+                }
+
+                // Store result
+                results.push({
+                    index: i + 1,
+                    input: item.input,
+                    expected: expectedOutput,
+                    actual: actualOutput,
+                    passed: evaluation.passed,
+                    score: evaluation.score,
+                    evaluationMethod: evaluation.method,
+                    reasoning: evaluation.reasoning || null
+                });
+
+            } catch (itemError) {
+                console.error(`Error processing item ${i}:`, itemError.message);
+                failed++;
+                
+                results.push({
+                    index: i + 1,
+                    input: item.input,
+                    expected: item.expected,
+                    error: itemError.message,
+                    passed: false,
+                    score: 0
+                });
+            }
+        }
+
+        const endTime = Date.now();
+        const totalTime = ((endTime - startTime) / 1000).toFixed(2);
+        const accuracy = dataset.length > 0 ? ((passed / dataset.length) * 100).toFixed(1) : 0;
+
+        // =========================================
+        // SAVE TO DATABASE
+        // =========================================
+        
+        const customEvalRecord = await CustomEval.create({
+            modelName: modelName,
+            provider: provider || 'hf-user-model',
+            evaluationType: evaluationType,
+            datasetSize: dataset.length,
+            results: {
+                total: dataset.length,
+                passed: passed,
+                failed: failed,
+                accuracy: parseFloat(accuracy)
+            },
+            individualResults: results,
+            completedAt: new Date(),
+            status: 'completed'
+        });
+
+        console.log(`Custom evaluation completed: ${passed}/${dataset.length} passed (${accuracy}%)`);
+
+        // =========================================
+        // RETURN RESPONSE
+        // =========================================
+        
+        return res.status(200).json({
+            success: true,
+            evaluationId: customEvalRecord._id,
+            summary: {
+                total: dataset.length,
+                passed: passed,
+                failed: failed,
+                accuracy: `${accuracy}%`,
+                totalTime: `${totalTime}s`
+            },
+            model: {
+                name: modelName,
+                provider: provider || 'hf-user-model'
+            },
+            evaluationType: evaluationType,
+            results: results,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('Custom dataset evaluation error:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+};
+
+/**
+ * Helper: Evaluate with LLM Judge
+ */
+async function evaluateWithLLMJudge(input, expected, actual) {
+    try {
+        const judgePrompt = `You are evaluating a model's response for correctness.
+
+Original Question: ${input}
+
+Expected Answer: ${expected}
+
+Model's Answer: ${actual}
+
+Instructions:
+- Determine if the model's answer is semantically correct
+- Consider the core meaning, not exact wording
+- Give partial credit for partially correct answers
+- Be fair and objective
+
+Output JSON only:
+{
+  "correct": true/false,
+  "score": 0.0-1.0,
+  "reasoning": "brief explanation"
+}`;
+
+        const judgeResponse = await llm_call({
+            model: process.env.JUDGE_MODEL || "gpt-4",
+            messages: [
+                { role: "system", content: "You are an impartial evaluator. Return only valid JSON." },
+                { role: "user", content: judgePrompt }
+            ],
+            temperature: 0,
+            provider: process.env.HF_JUDGE_SPACE_ENDPOINT ? 'hf-space' : undefined,
+            adapter: 'base'
+        });
+
+        // Try to parse JSON response
+        let parsed;
+        try {
+            const jsonMatch = judgeResponse.text.match(/\{[\s\S]*\}/);
+            parsed = JSON.parse(jsonMatch ? jsonMatch[0] : judgeResponse.text);
+        } catch (parseError) {
+            // Fallback if JSON parsing fails
+            console.warn('LLM judge returned non-JSON, using fallback');
+            return {
+                passed: false,
+                score: 0,
+                reasoning: "Judge failed to return valid JSON"
+            };
+        }
+
+        return {
+            passed: parsed.correct === true,
+            score: parsed.score || (parsed.correct ? 1.0 : 0.0),
+            reasoning: parsed.reasoning || "LLM judge evaluation"
+        };
+
+    } catch (error) {
+        console.error('LLM judge error:', error.message);
+        // Fallback to exact match
+        const match = actual.toLowerCase().includes(expected.toLowerCase());
+        return {
+            passed: match,
+            score: match ? 0.8 : 0,
+            reasoning: "Judge unavailable, used fallback matching"
+        };
+    }
+}
 

@@ -1,4 +1,4 @@
-import { llm_call } from "./llmservice.js";
+import { llm_call, getAdapterForBenchmark } from "./llmservice.js";
 import Judgement from "../models/judgement.js";
 import TestCase from "../models/testcase.js";
 import ModelResponse from "../models/modelresponse.js";
@@ -27,17 +27,34 @@ async function judge_response({ evalRunId, testCaseId, modelResponseId, benchmar
 
         const prompt = testCaseData.prompt;
         const response = modelResponseData.response;
+        const benchmarkType = testCaseData.metadata?.benchmarkType || null;
 
+        let parsed;
+
+        // Use HF Space LLM judge
+        console.log('Using HF Space LLM judge');
+        
         const judgePrompt = `${JUDGE_PROMPT}\n\nORIGINAL PROMPT:\n${prompt}\n\nMODEL RESPONSE:\n${response}`;
 
-        const judgementResult = await llm_call({
+        // Determine adapter based on benchmark type
+        const adapter = getAdapterForBenchmark(benchmarkType || 'general');
+        
+        // Use HF Space for judge if configured, otherwise use standard API
+        const judgeCallParams = {
             model: evalRun.judgeModel.name || process.env.JUDGE_MODEL || "gpt-4",
             messages: [{ "role": "user", "content": judgePrompt }],
             temperature: 0.3
-        });
+        };
+
+        // Add HF Space provider if endpoint is configured
+        if (process.env.HF_JUDGE_SPACE_ENDPOINT) {
+            judgeCallParams.provider = 'hf-space';
+            judgeCallParams.adapter = adapter;
+        }
+
+        const judgementResult = await llm_call(judgeCallParams);
 
         // Extract JSON from response (handles cases where LLM adds extra text)
-        let parsed;
         try {
             // Try direct parse first
             parsed = JSON.parse(judgementResult.text);

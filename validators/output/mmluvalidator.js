@@ -1,5 +1,5 @@
 
-import { llm_call } from '../../services/llmservice.js';
+import { llm_call, getAdapterForBenchmark } from '../../services/llmservice.js';
 
 export const mmluValidator = async (modelresponse, testcase) => {
   const response = modelresponse.Response;
@@ -37,10 +37,14 @@ Output JSON ONLY:
     { role: "user", content: judge_prompt }
   ];
 
+  const adapter = getAdapterForBenchmark('mmlu');
+
   const llm_response = await llm_call({
     messages,
     model: process.env.JUDGE_MODEL,
-    temperature: 0
+    temperature: 0,
+    provider: 'hf-space',
+    adapter: adapter
   });
 
   let parsed;

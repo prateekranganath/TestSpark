@@ -7,7 +7,7 @@ import aimevalidator from "../validators/output/aimevalidator.js";
 import { mmluValidator } from "../validators/output/mmluvalidator.js";
 import { msurValidator } from "../validators/output/mmsurvalidator.js";
 
-async function runEvaluation({ evalRunId, testCaseId, model, client, parameters }) {
+async function runEvaluation({ evalRunId, testCaseId, model, client, parameters, apiConfig, provider }) {
     try {
         const testCaseData = await TestCase.findById(testCaseId);
         if (!testCaseData) {
@@ -31,6 +31,8 @@ async function runEvaluation({ evalRunId, testCaseId, model, client, parameters 
             model: modelName,
             temperature: temperature,
             client: client,
+            apiConfig: apiConfig,
+            provider: provider,
             ...parameters // Spread any additional parameters
         });
 

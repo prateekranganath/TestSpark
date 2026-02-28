@@ -1,23 +1,193 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({ 
-    baseURL: 'http://localhost:11434/v1', 
-    apiKey: 'ollama' 
-});
+// Default Ollama client for local development (optional in production)
+const defaultOllamaClient = process.env.NODE_ENV === 'development' 
+    ? new OpenAI({ baseURL: 'http://localhost:11434/v1', apiKey: 'ollama' })
+    : null;
+
+/**
+ * Create API client from configuration
+ * @param {Object} apiConfig - API configuration { baseURL, apiKey }
+ * @returns {Object} - OpenAI-compatible client
+ */
+function createClientFromConfig(apiConfig) {
+    if (!apiConfig || !apiConfig.baseURL || !apiConfig.apiKey) {
+        throw new Error("apiConfig must include baseURL and apiKey");
+    }
+    
+    return new OpenAI({
+        baseURL: apiConfig.baseURL,
+        apiKey: apiConfig.apiKey
+    });
+}
+
+/**
+ * Infer using HuggingFace Space for judge models with adapter support
+ * @param {String} modelName - HuggingFace model ID (optional for Space)
+ * @param {Object} messages - Conversation messages
+ * @param {Object} parameters - Generation parameters including adapter
+ * @returns {Object} - Standardized response { text, usage }
+ */
+async function inferJudgeSpace(modelName, messages, parameters) {
+    try {
+        const hfSpaceEndpoint = process.env.HF_JUDGE_SPACE_ENDPOINT;
+        const hfSpaceToken = process.env.HF_SPACE_TOKEN; // Optional for private spaces
+        
+        if (!hfSpaceEndpoint) {
+            throw new Error("HF_JUDGE_SPACE_ENDPOINT environment variable not set");
+        }
+
+        // Format prompt from messages
+        let prompt = messages.map(m => {
+            if (m.role === 'system') return `System: ${m.content}`;
+            if (m.role === 'user') return `User: ${m.content}`;
+            if (m.role === 'assistant') return `Assistant: ${m.content}`;
+            return m.content;
+        }).join('\n');
+
+        // Determine which adapter to use
+        const adapter = parameters.adapter || 'base';
+
+        // Make request to HF Space endpoint
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        
+        if (hfSpaceToken) {
+            headers['Authorization'] = `Bearer ${hfSpaceToken}`;
+        }
+
+        // Gradio API expects data as an array matching the function parameters
+        // Parameters: prompt, adapter, temperature, max_tokens
+        const response = await fetch(`${hfSpaceEndpoint}/api/predict`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                data: [
+                    prompt,
+                    adapter,
+                    parameters.temperature || 0.3,
+                    parameters.max_tokens || 512
+                ],
+                fn_index: 2  // /infer endpoint (3rd function)
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HF Judge Space API error: ${response.statusText} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        
+        // Gradio returns: { data: [output] }
+        // Our output is a JSON object with text and usage
+        const data = typeof result.data[0] === 'string' ? JSON.parse(result.data[0]) : result.data[0];
+        
+        // Return standardized format
+        return {
+            text: data.text || data.generated_text || data.output || JSON.stringify(data),
+            usage: {
+                prompt_tokens: data.usage?.prompt_tokens || 0,
+                completion_tokens: data.usage?.completion_tokens || 0,
+                total_tokens: data.usage?.total_tokens || 0
+            }
+        };
+    } catch (error) {
+        throw new Error(`HF Judge Space inference error: ${error.message}`);
+    }
+}
+
+/**
+ * Infer using HuggingFace Space for user models (small OSS models <3B)
+ * Dynamically loads the model on-demand
+ * @param {String} modelName - HuggingFace model ID (e.g., "microsoft/phi-2")
+ * @param {Object} messages - Conversation messages
+ * @param {Object} parameters - Generation parameters
+ * @returns {Object} - Standardized response { text, usage }
+ */
+async function inferUserModelSpace(modelName, messages, parameters) {
+    try {
+        const userModelSpaceEndpoint = process.env.HF_USER_MODEL_SPACE_ENDPOINT;
+        const hfSpaceToken = process.env.HF_SPACE_TOKEN; // Optional for private spaces
+        
+        if (!userModelSpaceEndpoint) {
+            throw new Error("HF_USER_MODEL_SPACE_ENDPOINT not configured. User must provide apiConfig for their own inference endpoint.");
+        }
+
+        if (!modelName) {
+            throw new Error("Model name is required for HuggingFace Space inference");
+        }
+
+        // Format prompt from messages
+        let prompt = messages.map(m => {
+            if (m.role === 'system') return `System: ${m.content}`;
+            if (m.role === 'user') return `User: ${m.content}`;
+            if (m.role === 'assistant') return `Assistant: ${m.content}`;
+            return m.content;
+        }).join('\n');
+
+        // Make request to HF Space endpoint
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        
+        if (hfSpaceToken) {
+            headers['Authorization'] = `Bearer ${hfSpaceToken}`;
+        }
+
+        console.log(`Loading user model: ${modelName} from HF Space...`);
+
+        // Gradio API expects data as an array matching the function parameters
+        // Parameters: model_name, prompt, temperature, max_tokens, top_p
+        const response = await fetch(`${userModelSpaceEndpoint}/api/predict`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                data: [
+                    modelName,  // model_name parameter
+                    prompt,     // prompt parameter
+                    parameters.temperature || 0.7,
+                    parameters.max_tokens || 512,
+                    parameters.top_p || 1.0
+                ]
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HF User Model Space error: ${response.statusText} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        
+        // Gradio returns: { data: [output] }
+        // Our output is a JSON object with text and usage
+        const data = typeof result.data === 'string' ? JSON.parse(result.data[0]) : result.data[0];
+        
+        // Return standardized format
+        return {
+            text: data.text || data.generated_text || data.output,
+            usage: {
+                prompt_tokens: data.usage?.prompt_tokens || 0,
+                completion_tokens: data.usage?.completion_tokens || 0,
+                total_tokens: data.usage?.total_tokens || 0
+            }
+        };
+    } catch (error) {
+        throw new Error(`HF User Model Space inference error: ${error.message}`);
+    }
+}
 
 /**
  * Universal adapter function to call any model via any client API
- * @param {Object} client - The API client (default: openai)
- * @param {String} model - The model name (default: "llama3.2")
- * @param {Object} parameters - Parameters including messages, temperature, etc.
+ * @param {Object} client - The API client (optional if apiConfig provided)
+ * @param {String} model - The model name
+ * @param {Object} parameters - Parameters including messages, temperature, apiConfig, provider
  * @returns {Object} - Standardized response with text and usage
  */
 async function adapter(client, model, parameters) {
     try {
-        // Set defaults
-        client = client || openai;
-        model = model || "llama3.2";
-        
         // Validate parameters
         if (!parameters || !parameters.messages) {
             throw new Error("Parameters must include messages array");
@@ -28,13 +198,45 @@ async function adapter(client, model, parameters) {
         if (Array.isArray(parameters.messages)) {
             messages = parameters.messages;
         } else if (typeof parameters.messages === 'string') {
-            // Convert string to message format
             messages = [{ role: "user", content: parameters.messages }];
         } else if (typeof parameters.messages === 'object' && parameters.messages.role && parameters.messages.content) {
-            // Single message object
             messages = [parameters.messages];
         } else {
             throw new Error("Invalid messages format. Expected array, string, or message object");
+        }
+
+        // Extract provider and apiConfig
+        const provider = parameters.provider;
+        const apiConfig = parameters.apiConfig;
+
+        // Handle HuggingFace Space with adapters (for judge models)
+        if (provider === 'hf-space' || provider === 'huggingface-space') {
+            return await inferJudgeSpace(model, messages, parameters);
+        }
+
+        // Handle small open-source models via user model Space (no apiConfig provided)
+        // User just provides model name, we load it on HF Space
+        if (provider === 'hf-user-model' || (provider === 'huggingface' && !apiConfig)) {
+            return await inferUserModelSpace(model, messages, parameters);
+        }
+
+        // Create client from apiConfig if provided (for frontier models with user's API key)
+        if (apiConfig && !client) {
+            client = createClientFromConfig(apiConfig);
+        }
+
+        // Fallback to default client (dev only)
+        if (!client) {
+            if (defaultOllamaClient) {
+                client = defaultOllamaClient;
+                model = model || "llama3.2";
+            } else {
+                throw new Error("No API client available. Provide apiConfig or configure HF_SPACE_ENDPOINT");
+            }
+        }
+
+        if (!model) {
+            throw new Error("Model name is required");
         }
 
         // Extract additional parameters
@@ -75,20 +277,107 @@ async function adapter(client, model, parameters) {
 }
 
 /**
- * Legacy llm_call function - now uses adapter internally
- * @param {Object} params - Parameters including messages, model, temperature
+ * LLM call function - uses adapter with flexible client/API configuration
+ * @param {Object} params - Parameters including messages, model, temperature, apiConfig, provider
  * @returns {Object} - Response with text and usage
  */
-async function llm_call({ messages, model, temperature = 0.7, client }) {
+async function llm_call({ messages, model, temperature = 0.7, client, apiConfig, provider, ...additionalParams }) {
     try {
         return await adapter(
             client,
             model,
-            { messages, temperature }
+            { 
+                messages, 
+                temperature,
+                apiConfig,
+                provider,
+                ...additionalParams 
+            }
         );
     } catch (error) {
         throw new Error(`Error in llm_call: ${error.message}`);
     }
 }
 
-export { llm_call, adapter };
+/**
+ * Get appropriate adapter name based on benchmark type or task
+ * @param {String} benchmarkType - Type of benchmark (aime, mmlu, msur) or task
+ * @returns {String} - Adapter name to use
+ */
+function getAdapterForBenchmark(benchmarkType) {
+    if (!benchmarkType) return 'base';
+    
+    const type = benchmarkType.toLowerCase();
+    
+    // Adapter mapping
+    const adapterMap = {
+        'aime': 'math',
+        'math': 'math',
+        'msur': 'msur',
+        'mmlu': 'base',  // Use base model for MMLU
+        'general': 'base',
+        'custom': 'base'
+    };
+    
+    return adapterMap[type] || 'base';
+}
+
+/**
+ * Generate test cases using Judge Space generation endpoint
+ * Generates all 3 patterns (ambiguity, contradiction, negation) in one call
+ * @param {String} parentPrompt - Original prompt to generate test cases from
+ * @param {Object} parameters - Generation parameters
+ * @returns {Object} - Generated prompts { ambiguity, contradiction, negation }
+ */
+async function generateTestCasesFromJudgeSpace(parentPrompt, parameters = {}) {
+    try {
+        const judgeSpaceEndpoint = process.env.HF_JUDGE_SPACE_ENDPOINT;
+        const hfSpaceToken = process.env.HF_SPACE_TOKEN;
+        
+        if (!judgeSpaceEndpoint) {
+            throw new Error("HF_JUDGE_SPACE_ENDPOINT not configured. Cannot use Judge Space for generation.");
+        }
+
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        
+        if (hfSpaceToken) {
+            headers['Authorization'] = `Bearer ${hfSpaceToken}`;
+        }
+
+        // Gradio API expects data as an array matching the function parameters
+        // Parameters: parent_prompt, temperature, max_tokens
+        const response = await fetch(`${judgeSpaceEndpoint}/api/predict`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                data: [
+                    parentPrompt,
+                    parameters.temperature || 0.8,
+                    parameters.max_tokens || 200
+                ],
+                fn_index: 3  // /generate_all_patterns endpoint (4th function)
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Judge Space generation error: ${response.statusText} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        
+        // Gradio returns: { data: [output] }
+        const data = typeof result.data[0] === 'string' ? JSON.parse(result.data[0]) : result.data[0];
+        
+        return {
+            parent_prompt: data.parent_prompt,
+            generated_prompts: data.generated_prompts
+        };
+    } catch (error) {
+        throw new Error(`Judge Space generation error: ${error.message}`);
+    }
+}
+
+export { llm_call, adapter, createClientFromConfig, getAdapterForBenchmark, generateTestCasesFromJudgeSpace };

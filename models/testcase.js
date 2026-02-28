@@ -11,7 +11,7 @@ const testCaseSchema = new mongoose.Schema({
     },
     generatedBy: {
         type: String,
-        enum: ['user', 'llm'],
+        enum: ['user', 'llm', 'judge-space'],
         required: true
     },
     generationType: {
