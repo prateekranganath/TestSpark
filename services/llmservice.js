@@ -138,20 +138,16 @@ async function inferUserModelSpace(modelName, messages, parameters) {
 
         console.log(`Loading user model: ${modelName} from HF Space...`);
 
-        // Call the Gradio /api/infer endpoint
-        // Gradio HTTP API format: /api/[function_api_name]
-        // Parameters: model_name, prompt, temperature, max_tokens, top_p
-        const response = await fetch(`${userModelSpaceEndpoint}/api/infer`, {
+        // Call the FastAPI /infer endpoint
+        const response = await fetch(`${userModelSpaceEndpoint}/infer`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
-                data: [
-                    modelName,  // model_name parameter
-                    prompt,     // prompt parameter
-                    parameters.temperature || 0.7,
-                    parameters.max_tokens || 512,
-                    parameters.top_p || 1.0
-                ]
+                model_name: modelName,
+                prompt: prompt,
+                temperature: parameters.temperature || 0.7,
+                max_tokens: parameters.max_tokens || 512,
+                top_p: parameters.top_p || 1.0
             })
         });
 
@@ -162,17 +158,13 @@ async function inferUserModelSpace(modelName, messages, parameters) {
 
         const result = await response.json();
         
-        // Gradio returns: { data: [output] }
-        // Our output is a JSON object with text and usage
-        const data = typeof result.data === 'string' ? JSON.parse(result.data[0]) : result.data[0];
-        
-        // Return standardized format
+        // FastAPI returns the response directly
         return {
-            text: data.text || data.generated_text || data.output,
+            text: result.text,
             usage: {
-                prompt_tokens: data.usage?.prompt_tokens || 0,
-                completion_tokens: data.usage?.completion_tokens || 0,
-                total_tokens: data.usage?.total_tokens || 0
+                prompt_tokens: result.usage?.prompt_tokens || 0,
+                completion_tokens: result.usage?.completion_tokens || 0,
+                total_tokens: result.usage?.total_tokens || 0
             }
         };
     } catch (error) {
