@@ -57,19 +57,16 @@ async function inferJudgeSpace(modelName, messages, parameters) {
             headers['Authorization'] = `Bearer ${hfSpaceToken}`;
         }
 
-        // Gradio API expects data as an array matching the function parameters
-        // Parameters: prompt, adapter, temperature, max_tokens
-        const response = await fetch(`${hfSpaceEndpoint}/api/predict`, {
+        // Call the FastAPI /infer endpoint
+        const response = await fetch(`${hfSpaceEndpoint}/infer`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
-                data: [
-                    prompt,
-                    adapter,
-                    parameters.temperature || 0.3,
-                    parameters.max_tokens || 512
-                ],
-                fn_index: 2  // /infer endpoint (3rd function)
+                prompt: prompt,
+                adapter: adapter,
+                temperature: parameters.temperature || 0.3,
+                max_tokens: parameters.max_tokens || 512,
+                top_p: parameters.top_p || 1.0
             })
         });
 
@@ -80,17 +77,13 @@ async function inferJudgeSpace(modelName, messages, parameters) {
 
         const result = await response.json();
         
-        // Gradio returns: { data: [output] }
-        // Our output is a JSON object with text and usage
-        const data = typeof result.data[0] === 'string' ? JSON.parse(result.data[0]) : result.data[0];
-        
-        // Return standardized format
+        // FastAPI returns the response directly
         return {
-            text: data.text || data.generated_text || data.output || JSON.stringify(data),
+            text: result.text,
             usage: {
-                prompt_tokens: data.usage?.prompt_tokens || 0,
-                completion_tokens: data.usage?.completion_tokens || 0,
-                total_tokens: data.usage?.total_tokens || 0
+                prompt_tokens: result.usage?.prompt_tokens || 0,
+                completion_tokens: result.usage?.completion_tokens || 0,
+                total_tokens: result.usage?.total_tokens || 0
             }
         };
     } catch (error) {
@@ -339,18 +332,14 @@ async function generateTestCasesFromJudgeSpace(parentPrompt, parameters = {}) {
             headers['Authorization'] = `Bearer ${hfSpaceToken}`;
         }
 
-        // Gradio API expects data as an array matching the function parameters
-        // Parameters: parent_prompt, temperature, max_tokens
-        const response = await fetch(`${judgeSpaceEndpoint}/api/predict`, {
+        // Call the FastAPI /generate endpoint
+        const response = await fetch(`${judgeSpaceEndpoint}/generate`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
-                data: [
-                    parentPrompt,
-                    parameters.temperature || 0.8,
-                    parameters.max_tokens || 200
-                ],
-                fn_index: 3  // /generate_all_patterns endpoint (4th function)
+                parent_prompt: parentPrompt,
+                temperature: parameters.temperature || 0.8,
+                max_tokens: parameters.max_tokens || 200
             })
         });
 
@@ -361,12 +350,10 @@ async function generateTestCasesFromJudgeSpace(parentPrompt, parameters = {}) {
 
         const result = await response.json();
         
-        // Gradio returns: { data: [output] }
-        const data = typeof result.data[0] === 'string' ? JSON.parse(result.data[0]) : result.data[0];
-        
+        // FastAPI returns the response directly
         return {
-            parent_prompt: data.parent_prompt,
-            generated_prompts: data.generated_prompts
+            parent_prompt: result.parent_prompt,
+            generated_prompts: result.generated_prompts
         };
     } catch (error) {
         throw new Error(`Judge Space generation error: ${error.message}`);
