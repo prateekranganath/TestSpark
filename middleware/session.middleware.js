@@ -48,12 +48,13 @@ export function requireSessionId(req, res) {
 /**
  * Validate that session exists AND model is ready
  * Returns error response if session not found or model not ready
+ * NOW ASYNC to support MongoDB queries
  * 
  * @param {string} sessionId - Session ID to validate
  * @param {Response} res - Express response object
- * @returns {Object|null} - Model config or null if invalid
+ * @returns {Promise<Object|null>} - Model config or null if invalid
  */
-export function requireReadyModel(sessionId, res) {
+export async function requireReadyModel(sessionId, res) {
     if (!sessionId) {
         res.status(400).json({
             success: false,
@@ -63,8 +64,8 @@ export function requireReadyModel(sessionId, res) {
         return null;
     }
 
-    // Get model configuration from session
-    const modelConfig = getModelConfig(sessionId);
+    // Get model configuration from session (NOW ASYNC - MongoDB query)
+    const modelConfig = await getModelConfig(sessionId);
     
     if (!modelConfig) {
         res.status(400).json({
@@ -118,10 +119,11 @@ export function requireSession(req, res, next) {
 /**
  * Express middleware to require session and ready model
  * Blocks request if session model is not ready for inference
+ * NOW ASYNC to support MongoDB queries
  */
-export function requireReadySession(req, res, next) {
+export async function requireReadySession(req, res, next) {
     const sessionId = extractSessionId(req);
-    const modelConfig = requireReadyModel(sessionId, res);
+    const modelConfig = await requireReadyModel(sessionId, res);
     
     if (!modelConfig) return; // Response already sent
     

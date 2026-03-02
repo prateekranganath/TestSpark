@@ -67,7 +67,7 @@ User enters modelName
     ↓
 POST /api/model/initialize
     ↓
-Backend stores: sessionId → model mapping
+Backend stores: sessionId → model mapping IN MONGODB
     ↓
 Frontend stores: sessionId in localStorage/state
     ↓
@@ -76,11 +76,18 @@ ALL other routes use ONLY sessionId
 NEVER require modelName again
 ```
 
+**Storage:**
+- ✅ **MongoDB Persistence** - All session data persisted to database
+- ✅ **Automatic TTL Cleanup** - Sessions auto-expire after 24 hours
+- ✅ **No In-Memory Storage** - Survives server restarts and scales horizontally
+- ✅ **Single Source of Truth** - Session state consistent across all instances
+
 **Benefits:**
 - 🎯 **Single Responsibility** - Initialize endpoint handles model config, eval endpoints focus on evaluation
 - 🔒 **Type Safety** - No ambiguity between session model and inline model specification
 - 🚀 **Performance** - No need to pass model config in every request
 - 🧹 **Clean Code** - One source of truth for model configuration
+- 💾 **Production Ready** - MongoDB-backed persistence, no memory leaks
 
 ### CORS Configuration
 
@@ -1217,10 +1224,33 @@ DEFAULT_MAX_TOKENS=512
 - **Max dataset size:** 10 test cases per evaluation (demo limit for Render stability)
 - **SessionId required:** All evaluation endpoints require initialized session
 - **Model must be ready:** Status must be "ready" before evaluation
+- **Session persistence:** MongoDB-backed, survives server restarts
+- **Session TTL:** 24 hours auto-cleanup via MongoDB TTL index
 - **HuggingFace model size:** <3B parameters (free tier)
-- **Session duration:** 24 hours (auto-cleanup)
 - **First model load:** 2-5 minutes (cold start)
 - **Subsequent requests:** 10-30 seconds per test case
+
+---
+
+## Database Models
+
+### Session Model
+
+Sessions are persisted to MongoDB with automatic TTL expiration:
+
+```javascript
+{
+  sessionId: String,      // Unique session identifier
+  modelName: String,      // HuggingFace model name
+  modelProvider: String,  // Default: "huggingface"
+  baseUrl: String,        // HF Space endpoint URL
+  status: String,         // "loading" | "ready" | "error"
+  initializedAt: Date,    // Timestamp of initialization
+  createdAt: Date         // Auto-expires after 24 hours
+}
+```
+
+Sessions automatically deleted after 24 hours via MongoDB TTL index.
 
 ---
 

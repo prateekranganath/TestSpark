@@ -542,8 +542,8 @@ export const testModelWithBenchmark = async (req, res) => {
             });
         }
         
-        // Validate session exists AND model is ready
-        const sessionModel = requireReadyModel(sessionId, res);
+        // Validate session exists AND model is ready (async MongoDB query)
+        const sessionModel = await requireReadyModel(sessionId, res);
         if (!sessionModel) return; // Response already sent by requireReadyModel
         
         console.log(`📦 Using session model for benchmark: ${sessionModel.modelName}`);
@@ -1385,8 +1385,8 @@ export const customDatasetEval = async (req, res) => {
             });
         }
         
-        // Validate session exists AND model is ready
-        const sessionModel = requireReadyModel(sessionId, res);
+        // Validate session exists AND model is ready (async MongoDB query)
+        const sessionModel = await requireReadyModel(sessionId, res);
         if (!sessionModel) return; // Response already sent by requireReadyModel
         
         console.log(`📦 Using session model: ${sessionModel.modelName}`);
@@ -1859,8 +1859,8 @@ export const runBenchmarkSuite = async (req, res) => {
             });
         }
         
-        // Validate session exists AND model is ready
-        const sessionModel = requireReadyModel(sessionId, res);
+        // Validate session exists AND model is ready (async MongoDB query)
+        const sessionModel = await requireReadyModel(sessionId, res);
         if (!sessionModel) return; // Response already sent by requireReadyModel
         
         // Extract benchmarkType from request body

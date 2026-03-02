@@ -1,43 +1,80 @@
 /**
  * Session Service - Manage model configurations per session
- * In-memory storage (use Redis or MongoDB for production)
+ * MongoDB-based persistence (replaces in-memory storage)
  */
 
-const sessions = new Map();
+import Session from '../models/session.js';
 
 /**
  * Store model configuration for a session
  * @param {String} sessionId - Session identifier
  * @param {Object} config - Model configuration
  */
-export function storeModelConfig(sessionId, config) {
-    sessions.set(sessionId, {
-        ...config,
-        initializedAt: new Date(),
-        ready: false
-    });
-    console.log(`✅ Stored model config for session ${sessionId}:`, config.modelName);
+export async function storeModelConfig(sessionId, config) {
+    try {
+        await Session.findOneAndUpdate(
+            { sessionId },
+            {
+                sessionId,
+                modelName: config.modelName,
+                modelProvider: config.modelProvider || 'huggingface',
+                baseUrl: config.baseUrl,
+                status: 'loading',
+                initializedAt: new Date()
+            },
+            { upsert: true, new: true }
+        );
+        console.log(`✅ Stored model config in MongoDB for session ${sessionId}:`, config.modelName);
+    } catch (error) {
+        console.error(`❌ Error storing session ${sessionId}:`, error);
+        throw error;
+    }
 }
 
 /**
  * Get model configuration for a session
  * @param {String} sessionId - Session identifier
- * @returns {Object|undefined} Model configuration
+ * @returns {Object|null} Model configuration with ready status
  */
-export function getModelConfig(sessionId) {
-    return sessions.get(sessionId);
+export async function getModelConfig(sessionId) {
+    try {
+        const session = await Session.findOne({ sessionId });
+        if (!session) {
+            return null;
+        }
+        
+        // Return in format compatible with existing code
+        return {
+            modelName: session.modelName,
+            modelProvider: session.modelProvider,
+            baseUrl: session.baseUrl,
+            sessionId: session.sessionId,
+            initializedAt: session.initializedAt,
+            ready: session.status === 'ready'
+        };
+    } catch (error) {
+        console.error(`❌ Error getting session ${sessionId}:`, error);
+        return null;
+    }
 }
 
 /**
  * Mark model as ready for a session
  * @param {String} sessionId - Session identifier
  */
-export function markModelReady(sessionId) {
-    const config = sessions.get(sessionId);
-    if (config) {
-        config.ready = true;
-        config.readyAt = new Date();
-        console.log(`✅ Model ready for session ${sessionId}: ${config.modelName}`);
+export async function markModelReady(sessionId) {
+    try {
+        const result = await Session.updateOne(
+            { sessionId },
+            { status: 'ready' }
+        );
+        
+        if (result.modifiedCount > 0) {
+            const session = await Session.findOne({ sessionId });
+            console.log(`✅ Model ready for session ${sessionId}: ${session?.modelName}`);
+        }
+    } catch (error) {
+        console.error(`❌ Error marking session ready ${sessionId}:`, error);
     }
 }
 
@@ -45,33 +82,48 @@ export function markModelReady(sessionId) {
  * Clear model configuration for a session
  * @param {String} sessionId - Session identifier
  */
-export function clearModelConfig(sessionId) {
-    sessions.delete(sessionId);
-    console.log(`🗑️  Cleared model config for session ${sessionId}`);
+export async function clearModelConfig(sessionId) {
+    try {
+        await Session.deleteOne({ sessionId });
+        console.log(`🗑️  Cleared model config from MongoDB for session ${sessionId}`);
+    } catch (error) {
+        console.error(`❌ Error clearing session ${sessionId}:`, error);
+    }
 }
 
 /**
  * Get all active sessions (for debugging)
  * @returns {Number} Number of active sessions
  */
-export function getSessionCount() {
-    return sessions.size;
-}
-
-/**
- * Cleanup expired sessions (older than 24 hours)
- */
-export function cleanupExpiredSessions() {
-    const now = new Date();
-    const expiryTime = 24 * 60 * 60 * 1000; // 24 hours
-    
-    for (const [sessionId, config] of sessions.entries()) {
-        if (now - config.initializedAt > expiryTime) {
-            sessions.delete(sessionId);
-            console.log(`🧹 Cleaned up expired session: ${sessionId}`);
-        }
+export async function getSessionCount() {
+    try {
+        return await Session.countDocuments();
+    } catch (error) {
+        console.error('❌ Error counting sessions:', error);
+        return 0;
     }
 }
 
-// Run cleanup every hour
+/**
+ * Manual cleanup of expired sessions (MongoDB TTL handles this automatically)
+ * This function is kept for compatibility but is now optional
+ */
+export async function cleanupExpiredSessions() {
+    try {
+        const expiryTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
+        const result = await Session.deleteMany({ 
+            createdAt: { $lt: expiryTime } 
+        });
+        
+        if (result.deletedCount > 0) {
+            console.log(`🧹 Cleaned up ${result.deletedCount} expired sessions from MongoDB`);
+        }
+    } catch (error) {
+        console.error('❌ Error cleaning up sessions:', error);
+    }
+}
+
+// Manual cleanup is now optional (MongoDB TTL handles it)
+// But we keep this for extra safety
 setInterval(cleanupExpiredSessions, 60 * 60 * 1000);
+

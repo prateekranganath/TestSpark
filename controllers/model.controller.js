@@ -39,15 +39,16 @@ export async function initializeModel(req, res) {
             adapter: null // Future: support LoRA adapters
         };
 
-        storeModelConfig(sessionId, modelConfig);
+        // Store model configuration in MongoDB (async)
+        await storeModelConfig(sessionId, modelConfig);
 
         // Start warmup asynchronously (don't wait)
         console.log(`🤗 Starting warmup for ${modelName}...`);
         warmupHFModel(modelName, null)
-            .then(result => {
+            .then(async result => {
                 if (result.ready) {
                     console.log(`✅ Model ${modelName} warmed up and ready`);
-                    markModelReady(sessionId);
+                    await markModelReady(sessionId);
                 } else if (result.loading) {
                     console.log(`⏳ Model ${modelName} is loading...`);
                 } else {
@@ -99,8 +100,8 @@ export async function checkStatus(req, res) {
             });
         }
 
-        // Get stored model configuration
-        const modelConfig = getModelConfig(sessionId);
+        // Get stored model configuration from MongoDB (async)
+        const modelConfig = await getModelConfig(sessionId);
 
         if (!modelConfig) {
             // Return 200 with graceful error - don't break polling
@@ -131,8 +132,8 @@ export async function checkStatus(req, res) {
         const statusResult = await checkHFModelStatus(modelConfig.modelName, modelConfig.adapter);
         
         if (statusResult.ready) {
-            // Update session to mark as ready
-            markModelReady(sessionId);
+            // Update session to mark as ready (async)
+            await markModelReady(sessionId);
             
             
             return res.status(200).json({
@@ -185,7 +186,8 @@ export async function clearModel(req, res) {
             });
         }
 
-        clearModelConfig(sessionId);
+        // Clear model configuration from MongoDB (async)
+        await clearModelConfig(sessionId);
 
         return res.status(200).json({
             success: true,
