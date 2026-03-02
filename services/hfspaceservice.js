@@ -2,8 +2,6 @@
  * HuggingFace Space Service - Handle model warmup and status checking
  */
 
-import fetch from 'node-fetch';
-
 const HF_USER_MODEL_SPACE_ENDPOINT = process.env.HF_USER_MODEL_SPACE_ENDPOINT;
 const HF_SPACE_TOKEN = process.env.HF_SPACE_TOKEN;
 
