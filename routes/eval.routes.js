@@ -10,7 +10,9 @@ import {
     getBenchmarkStatistics,
     testModelWithBenchmark,
     comprehensiveModelTest,
-    customDatasetEval
+    customDatasetEval,
+    getDashboardStats,
+    compareModels
 } from '../controllers/eval.controller.js';
 
 const router = express.Router();
@@ -47,5 +49,14 @@ router.post('/custom-dataset', customDatasetEval);
 
 // Delete evaluation run
 router.delete('/runs/:evalRunId', deleteEvalRun);
+
+// Frontend compatibility aliases
+router.post('/custom', customDatasetEval);  // Alias for /custom-dataset
+router.post('/benchmark', testModelWithBenchmark);  // Alias for /test-benchmark
+router.get('/history', getAllEvalRuns);  // Alias for /runs
+
+// Dashboard and comparison endpoints
+router.get('/dashboard', getDashboardStats);
+router.get('/compare', compareModels);
 
 export default router;

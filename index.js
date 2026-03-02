@@ -36,7 +36,13 @@ app.get('/', (req, res) => {
     endpoints: {
       evaluation: '/api/eval',
       generator: '/api/generator',
-      judge: '/api/judge'
+      judge: '/api/judge',
+      // Frontend-compatible aliases
+      runs: '/api/runs',
+      dashboard: '/api/dashboard',
+      compare: '/api/compare',
+      generate: '/api/generate (POST)',
+      judgeEvaluate: '/api/judge (POST)'
     }
   });
 });
@@ -53,6 +59,33 @@ app.get('/api/health', (req, res) => {
 app.use('/api/eval', evalRoutes);
 app.use('/api/generator', generatorRoutes);
 app.use('/api/judge', judgeRoutes);
+
+// Frontend compatibility aliases (top-level routes that map to nested routes)
+// These allow the frontend to use shorter endpoint paths
+app.get('/api/runs', (req, res) => {
+  req.url = '/history' + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '');
+  evalRoutes(req, res);
+});
+
+app.get('/api/dashboard', (req, res) => {
+  req.url = '/dashboard';
+  evalRoutes(req, res);
+});
+
+app.get('/api/compare', (req, res) => {
+  req.url = '/compare';
+  evalRoutes(req, res);
+});
+
+app.post('/api/generate', (req, res) => {
+  req.url = '/generate';
+  generatorRoutes(req, res);
+});
+
+app.post('/api/judge', (req, res) => {
+  req.url = '/evaluate';
+  judgeRoutes(req, res);
+});
 
 // 404 handler
 app.use((req, res) => {

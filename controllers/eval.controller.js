@@ -1659,3 +1659,113 @@ Output JSON only:
     }
 }
 
+/**
+ * Get dashboard statistics
+ * GET /api/dashboard or /api/eval/dashboard
+ */
+export const getDashboardStats = async (req, res) => {
+    try {
+        const runs = await EvalRun.find().sort({ timestamp: -1 }).limit(100);
+        
+        const totalRuns = runs.length;
+        const completedRuns = runs.filter(r => r.summary).length;
+        const activeRuns = totalRuns - completedRuns;
+        
+        // Calculate average accuracy
+        const runsWithAccuracy = runs.filter(r => r.summary?.accuracy);
+        const avgAccuracy = runsWithAccuracy.length > 0
+            ? runsWithAccuracy.reduce((sum, r) => {
+                const acc = parseFloat(r.summary.accuracy.replace('%', ''));
+                return sum + acc;
+            }, 0) / runsWithAccuracy.length
+            : 0;
+
+        // Recent activity (last 7 days)
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const recentRuns = runs.filter(r => new Date(r.timestamp) > sevenDaysAgo);
+
+        res.json({
+            success: true,
+            data: {
+                totalRuns,
+                completedRuns,
+                activeRuns,
+                averageAccuracy: `${avgAccuracy.toFixed(1)}%`,
+                recentActivity: recentRuns.length,
+                lastRunTime: runs[0]?.timestamp || null
+            }
+        });
+    } catch (error) {
+        console.error('Dashboard stats error:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Compare models across all evaluation runs
+ * GET /api/compare or /api/eval/compare
+ */
+export const compareModels = async (req, res) => {
+    try {
+        const runs = await EvalRun.find().sort({ timestamp: -1 });
+        
+        // Group by model
+        const modelStats = {};
+        
+        runs.forEach(run => {
+            const modelKey = `${run.model.provider}:${run.model.name}`;
+            
+            if (!modelStats[modelKey]) {
+                modelStats[modelKey] = {
+                    modelName: run.model.name,
+                    provider: run.model.provider,
+                    totalRuns: 0,
+                    totalTests: 0,
+                    totalPassed: 0,
+                    averageAccuracy: 0,
+                    lastRun: null
+                };
+            }
+            
+            modelStats[modelKey].totalRuns++;
+            if (run.summary) {
+                modelStats[modelKey].totalTests += run.summary.total || 0;
+                modelStats[modelKey].totalPassed += run.summary.passed || 0;
+            }
+            
+            // Track most recent run
+            if (!modelStats[modelKey].lastRun || new Date(run.timestamp) > new Date(modelStats[modelKey].lastRun)) {
+                modelStats[modelKey].lastRun = run.timestamp;
+            }
+        });
+        
+        // Calculate average accuracy for each model
+        Object.keys(modelStats).forEach(key => {
+            const stats = modelStats[key];
+            stats.averageAccuracy = stats.totalTests > 0
+                ? ((stats.totalPassed / stats.totalTests) * 100).toFixed(1) + '%'
+                : '0%';
+        });
+        
+        res.json({
+            success: true,
+            data: {
+                models: Object.values(modelStats).sort((a, b) => {
+                    const accA = parseFloat(a.averageAccuracy.replace('%', ''));
+                    const accB = parseFloat(b.averageAccuracy.replace('%', ''));
+                    return accB - accA; // Sort by accuracy descending
+                })
+            }
+        });
+    } catch (error) {
+        console.error('Model comparison error:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
