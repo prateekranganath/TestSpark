@@ -8,94 +8,65 @@ import { warmupHFModel, checkHFModelStatus } from '../services/hfspaceservice.js
 /**
  * Initialize a model for the user session
  * POST /api/model/initialize
+ * Request: { modelName }
  */
 export async function initializeModel(req, res) {
     try {
-        const { modelProvider, modelName, baseUrl, apiKey, adapter } = req.body;
+        const { modelName } = req.body;
 
-        // Validate required fields
-        if (!modelProvider || !modelName) {
+        // Validate required field
+        if (!modelName) {
             return res.status(400).json({
                 success: false,
-                error: 'modelProvider and modelName are required'
+                error: 'modelName is required',
+                example: { modelName: 'TinyLlama/TinyLlama-1.1B-Chat-v1.0' }
             });
         }
 
-        // Generate or get session ID
-        const sessionId = req.sessionID || req.session?.id || `session_${Date.now()}`;
-        console.log(`📝 Initializing model for session: ${sessionId}`);
+        // Generate session ID (not cookie-based, frontend will store and send back)
+        const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        console.log(`📝 Initializing HuggingFace model for session: ${sessionId}`);
+        console.log(`   Model: ${modelName}`);
 
         // Store model configuration in session
+        // Use backend-configured HF Space URL (not from frontend)
         const modelConfig = {
-            modelProvider,
+            modelProvider: 'huggingface',
             modelName,
-            baseUrl,
-            apiKey,
-            adapter,
-            sessionId
+            baseUrl: process.env.HF_USER_MODEL_SPACE_ENDPOINT,
+            sessionId,
+            adapter: null // Future: support LoRA adapters
         };
 
         storeModelConfig(sessionId, modelConfig);
 
-        // Handle different model providers
-        if (modelProvider === 'huggingface') {
-            console.log(`🤗 HuggingFace model detected: ${modelName}`);
-            
-            // Start warmup asynchronously (don't wait)
-            warmupHFModel(modelName, adapter)
-                .then(result => {
-                    if (result.ready) {
-                        console.log(`✅ Model ${modelName} warmed up and ready`);
-                        markModelReady(sessionId);
-                    } else if (result.loading) {
-                        console.log(`⏳ Model ${modelName} is loading...`);
-                    } else {
-                        console.error(`❌ Model ${modelName} warmup failed:`, result.error);
-                    }
-                })
-                .catch(err => {
-                    console.error(`❌ Model ${modelName} warmup error:`, err);
-                });
+        // Start warmup asynchronously (don't wait)
+        console.log(`🤗 Starting warmup for ${modelName}...`);
+        warmupHFModel(modelName, null)
+            .then(result => {
+                if (result.ready) {
+                    console.log(`✅ Model ${modelName} warmed up and ready`);
+                    markModelReady(sessionId);
+                } else if (result.loading) {
+                    console.log(`⏳ Model ${modelName} is loading...`);
+                } else {
+                    console.error(`❌ Model ${modelName} warmup failed:`, result.error);
+                }
+            })
+            .catch(err => {
+                console.error(`❌ Model ${modelName} warmup error:`, err);
+            });
 
-            // Return immediately with loading status
-            return res.status(200).json({
-                success: true,
-                message: 'Model initialization started',
-                status: 'loading',
-                sessionId,
-                estimatedTime: '2-5 minutes for first load',
-                note: 'Poll /api/model/status to check when model is ready'
-            });
-        } 
-        
-        // Frontier models (OpenAI, Anthropic, etc.) are always ready
-        else if (['openai', 'anthropic', 'google', 'cohere'].includes(modelProvider)) {
-            console.log(`🚀 Frontier model detected: ${modelProvider}/${modelName} - marking as ready immediately`);
-            markModelReady(sessionId);
-            
-            return res.status(200).json({
-                success: true,
-                message: 'Model initialized successfully',
-                status: 'ready',
-                sessionId,
-                modelProvider,
-                modelName
-            });
-        }
-        
-        // Other providers
-        else {
-            markModelReady(sessionId); // Assume ready
-            
-            return res.status(200).json({
-                success: true,
-                message: 'Model initialized successfully',
-                status: 'ready',
-                sessionId,
-                modelProvider,
-                modelName
-            });
-        }
+        // Return immediately with loading status
+        return res.status(200).json({
+            success: true,
+            message: 'Model initialization started',
+            status: 'loading',
+            sessionId,
+            modelName,
+            estimatedTime: '2-5 minutes for first load',
+            note: 'Poll GET /api/model/status?sessionId=' + sessionId
+        });
 
     } catch (error) {
         console.error('❌ Model initialization error:', error);
@@ -109,17 +80,19 @@ export async function initializeModel(req, res) {
 
 /**
  * Check model status for the user session
- * GET /api/model/status
+ * GET /api/model/status?sessionId=xxx
  */
 export async function checkStatus(req, res) {
     try {
-        const sessionId = req.sessionID || req.session?.id;
+        // Get sessionId from query param (no cookies needed)
+        const sessionId = req.query.sessionId || req.headers['x-session-id'];
 
         if (!sessionId) {
             return res.status(400).json({
                 success: false,
-                error: 'No session ID found',
-                status: 'not_initialized'
+                error: 'sessionId is required',
+                status: 'not_initialized',
+                hint: 'Pass sessionId as query param: /api/model/status?sessionId=xxx'
             });
         }
 
@@ -147,46 +120,37 @@ export async function checkStatus(req, res) {
             });
         }
 
-        // For HuggingFace models, check actual status
-        if (modelConfig.modelProvider === 'huggingface') {
-            console.log(`🔍 Checking HF model status: ${modelConfig.modelName}`);
+        // Check actual HF Space status
+        console.log(`🔍 Checking HF model status: ${modelConfig.modelName}`);
+        
+        const statusResult = await checkHFModelStatus(modelConfig.modelName, modelConfig.adapter);
+        
+        if (statusResult.ready) {
+            // Update session to mark as ready
+            markModelReady(sessionId);
             
-            const statusResult = await checkHFModelStatus(modelConfig.modelName, modelConfig.adapter);
             
-            if (statusResult.ready) {
-                // Update session to mark as ready
-                markModelReady(sessionId);
-                
-                return res.status(200).json({
-                    success: true,
-                    status: 'ready',
-                    message: statusResult.message,
-                    modelProvider: modelConfig.modelProvider,
-                    modelName: modelConfig.modelName,
-                    initializedAt: modelConfig.initializedAt
-                });
-            } else {
-                return res.status(200).json({
-                    success: true,
-                    status: statusResult.status,
-                    message: statusResult.message,
-                    progress: statusResult.progress,
-                    modelProvider: modelConfig.modelProvider,
-                    modelName: modelConfig.modelName,
-                    initializedAt: modelConfig.initializedAt
-                });
-            }
+            return res.status(200).json({
+                success: true,
+                status: 'ready',
+                message: statusResult.message,
+                modelProvider: modelConfig.modelProvider,
+                modelName: modelConfig.modelName,
+                sessionId,
+                initializedAt: modelConfig.initializedAt
+            });
+        } else {
+            return res.status(200).json({
+                success: true,
+                status: statusResult.status,
+                message: statusResult.message,
+                progress: statusResult.progress,
+                modelProvider: modelConfig.modelProvider,
+                modelName: modelConfig.modelName,
+                sessionId,
+                initializedAt: modelConfig.initializedAt
+            });
         }
-
-        // For other providers, should already be ready
-        return res.status(200).json({
-            success: true,
-            status: 'ready',
-            message: 'Model is ready',
-            modelProvider: modelConfig.modelProvider,
-            modelName: modelConfig.modelName,
-            initializedAt: modelConfig.initializedAt
-        });
 
     } catch (error) {
         console.error('❌ Model status check error:', error);
@@ -200,16 +164,16 @@ export async function checkStatus(req, res) {
 
 /**
  * Clear model configuration from session
- * DELETE /api/model/clear
+ * DELETE /api/model/clear?sessionId=xxx
  */
 export async function clearModel(req, res) {
     try {
-        const sessionId = req.sessionID || req.session?.id;
+        const sessionId = req.query.sessionId || req.headers['x-session-id'];
 
         if (!sessionId) {
             return res.status(400).json({
                 success: false,
-                error: 'No session ID found'
+                error: 'sessionId is required'
             });
         }
 

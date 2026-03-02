@@ -527,7 +527,8 @@ export const testModelWithBenchmark = async (req, res) => {
         
         // If no model provided, try to use session model
         if (!modelName || !provider) {
-            const sessionId = req.sessionID || req.session?.id;
+            // Get sessionId from query, header, or body
+            const sessionId = req.query.sessionId || req.headers['x-session-id'] || req.body.sessionId;
             
             if (sessionId) {
                 const sessionModel = getModelConfig(sessionId);
@@ -536,10 +537,9 @@ export const testModelWithBenchmark = async (req, res) => {
                     console.log(`📦 Using session model for benchmark: ${sessionModel.modelName}`);
                     
                     modelName = modelName || sessionModel.modelName;
-                    provider = provider || sessionModel.modelProvider;
+                    provider = 'hf-user-model';
                     apiConfig = apiConfig || {
-                        baseURL: sessionModel.baseUrl,
-                        apiKey: sessionModel.apiKey
+                        baseURL: sessionModel.baseUrl
                     };
                     
                     console.log(`✅ Applied session model config: ${provider}/${modelName}`);
@@ -1364,7 +1364,8 @@ export const customDatasetEval = async (req, res) => {
         
         // If no model provided, try to use session model
         if (!modelName || !provider) {
-            const sessionId = req.sessionID || req.session?.id;
+            // Get sessionId from query, header, or body
+            const sessionId = req.query.sessionId || req.headers['x-session-id'] || req.body.sessionId;
             
             if (sessionId) {
                 const sessionModel = getModelConfig(sessionId);
@@ -1374,10 +1375,9 @@ export const customDatasetEval = async (req, res) => {
                     
                     // Use session model as default (request params override if provided)
                     modelName = modelName || sessionModel.modelName;
-                    provider = provider || sessionModel.modelProvider;
+                    provider = 'hf-user-model';
                     apiConfig = apiConfig || {
-                        baseURL: sessionModel.baseUrl,
-                        apiKey: sessionModel.apiKey
+                        baseURL: sessionModel.baseUrl
                     };
                     
                     console.log(`✅ Applied session model config: ${provider}/${modelName}`);
@@ -1385,7 +1385,7 @@ export const customDatasetEval = async (req, res) => {
                     return res.status(400).json({
                         success: false,
                         error: "Session model is not ready yet. Please wait for initialization to complete.",
-                        tip: "Poll GET /api/model/status to check when model is ready"
+                        tip: "Poll GET /api/model/status?sessionId=" + sessionId
                     });
                 }
             }

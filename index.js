@@ -1,5 +1,4 @@
 import express from 'express';
-import session from 'express-session';
 import dotenv from 'dotenv';
 import connectDB from './db/connectdb.js';
 
@@ -28,22 +27,11 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session middleware (for model initialization persistence)
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'testspark-secret-key-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' // HTTPS in production
-  }
-}));
-
-// CORS middleware (enabled for frontend integration)
+// CORS middleware (simple setup for frontend integration)
+// Frontend stores sessionId and sends it as query param or header
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Session-Id');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
