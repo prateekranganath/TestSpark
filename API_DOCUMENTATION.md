@@ -35,11 +35,11 @@ TESTSPARK is a session-based LLM evaluation platform that allows you to:
 
 ### Key Features
 
-- ✅ **Simplified API** - Only model name required, server manages HF Space URLs
-- ✅ **Session Management** - No cookies, frontend stores and sends sessionId
+- ✅ **Simplified API** - Only model name required for initialization
+- ✅ **Session-First Architecture** - All eval endpoints require sessionId (NO modelName fallback)
 - ✅ **Progress Tracking** - Real-time model loading status with progress indicators
-- ✅ **Multiple Providers** - HuggingFace (free), OpenAI, Anthropic, etc.
-- ✅ **Automatic Fallback** - Eval endpoints use session model if not specified
+- ✅ **No Cookie Dependency** - Frontend stores and sends sessionId explicitly
+- ✅ **Clean Separation** - Initialize once, evaluate many times with just sessionId
 
 ---
 
@@ -47,15 +47,40 @@ TESTSPARK is a session-based LLM evaluation platform that allows you to:
 
 ### Session Flow
 
-TESTSPARK uses **stateless sessions** - no cookies required!
+TESTSPARK uses **session-first architecture** - no cookies, no modelName needed after initialization!
 
 1. **Frontend** calls `POST /api/model/initialize` with `{ modelName }`
 2. **Backend** returns `{ sessionId: "sess_xxx..." }`
 3. **Frontend** stores sessionId (localStorage/state)
-4. **Frontend** passes sessionId in subsequent requests via:
-   - Query parameter: `?sessionId=sess_xxx`
+4. **Frontend** passes sessionId in ALL subsequent requests via:
+   - Query parameter: `?sessionId=sess_xxx` (recommended)
    - Header: `X-Session-Id: sess_xxx`
-   - Request body: `{ sessionId: "sess_xxx", ... }`
+   - Request body: `{ sessionId: "sess_xxx" }`
+
+**⚠️ CRITICAL:** All evaluation endpoints **require** sessionId. There is NO fallback to modelName. This ensures clean separation between initialization and evaluation.
+
+### Clean Target Architecture
+
+**Flow:**
+```
+User enters modelName
+    ↓
+POST /api/model/initialize
+    ↓
+Backend stores: sessionId → model mapping
+    ↓
+Frontend stores: sessionId in localStorage/state
+    ↓
+ALL other routes use ONLY sessionId
+    ↓
+NEVER require modelName again
+```
+
+**Benefits:**
+- 🎯 **Single Responsibility** - Initialize endpoint handles model config, eval endpoints focus on evaluation
+- 🔒 **Type Safety** - No ambiguity between session model and inline model specification
+- 🚀 **Performance** - No need to pass model config in every request
+- 🧹 **Clean Code** - One source of truth for model configuration
 
 ### CORS Configuration
 
@@ -496,19 +521,19 @@ async function runEvaluation(sessionId, dataset) {
 
 **Note:** Model configuration automatically used from session. Runs first 10 problems for demo stability.
 
-**Response (Started):**
+**Response (Debugging Mode - Temporary):**
 ```json
 {
   "success": true,
-  "message": "AIME benchmark evaluation started",
+  "message": "Benchmark route reached successfully",
+  "sessionId": "sess_1709388123456_abc123",
   "benchmarkType": "AIME",
-  "totalProblems": 30,
-  "runningProblems": 10,
-  "modelName": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-  "status": "started",
-  "note": "Full evaluation implementation coming soon - will run all problems and aggregate results"
+  "status": "route_working",
+  "note": "Evaluation logic temporarily disabled for debugging"
 }
 ```
+
+**Note:** Route is currently in simplified debugging mode to isolate 500 errors. Full evaluation logic will be restored after stability is confirmed.
 
 **Response (Error - Invalid Benchmark):**
 ```json

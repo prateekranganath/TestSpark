@@ -41,8 +41,7 @@ router.post('/runs/:evalRunId/start', startEvalRun);
 router.post('/evaluate', runSingleEvaluation);
 
 // Test model with full benchmark suite (AIME, MMLU, MSUR)
-// NEW: Accepts benchmarkType instead of testCaseId
-// Inline handler with detailed logging for debugging
+// TEMPORARY: Ultra-simplified to isolate 500 error
 router.post('/test-benchmark', async (req, res) => {
     console.log("📌 test-benchmark route hit");
     console.log("Query:", req.query);
@@ -50,6 +49,7 @@ router.post('/test-benchmark', async (req, res) => {
     console.log("Headers x-session-id:", req.headers["x-session-id"]);
 
     try {
+        // Extract sessionId - MANDATORY
         const sessionId =
             req.query.sessionId ||
             req.headers["x-session-id"] ||
@@ -62,6 +62,7 @@ router.post('/test-benchmark', async (req, res) => {
             return res.status(400).json({
                 success: false,
                 error: "sessionId is required",
+                message: "Initialize a model first using POST /api/model/initialize"
             });
         }
 
@@ -74,35 +75,22 @@ router.post('/test-benchmark', async (req, res) => {
             return res.status(400).json({
                 success: false,
                 error: "benchmarkType is required",
+                validOptions: ["AIME", "MMLU", "MSUR"]
             });
         }
 
-        // Fetch test cases from database
-        console.log("📚 Querying database for benchmarkType:", benchmarkType);
-        const testCases = await TestCase.find({ 
-            'metadata.benchmarkType': benchmarkType.toUpperCase() 
-        });
-
-        console.log("📦 Found testCases:", testCases ? testCases.length : 0);
-
-        if (!testCases || testCases.length === 0) {
-            console.log("❌ No test cases found for:", benchmarkType);
-            return res.status(400).json({
-                success: false,
-                error: "No test cases found for this benchmarkType",
-                benchmarkType: benchmarkType
-            });
-        }
-
-        console.log("✅ Benchmark loaded successfully");
+        console.log("✅ Route validation passed - returning simple response");
         
-        // Placeholder response for now (to isolate crash)
+        // TEMPORARY: Super simple response to isolate crash
+        // If this works, crash is in evaluation logic
+        // If this crashes, it's route wiring
         return res.status(200).json({
             success: true,
-            message: `Benchmark ${benchmarkType} loaded successfully`,
+            message: "Benchmark route reached successfully",
+            sessionId: sessionId,
             benchmarkType: benchmarkType,
-            totalProblems: testCases.length,
-            status: "loaded"
+            status: "route_working",
+            note: "Evaluation logic temporarily disabled for debugging"
         });
 
     } catch (error) {
