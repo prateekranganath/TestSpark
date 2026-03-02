@@ -6,6 +6,7 @@ import TestCase from "../models/testcase.js";
 import ModelResponse from "../models/modelresponse.js";
 import Judgement from "../models/judgement.js";
 import CustomEval from "../models/customeval.js";
+import { getModelConfig } from "../services/sessionservice.js";
 
 // Create a new evaluation run
 export const createEvalRun = async (req, res) => {
@@ -510,7 +511,7 @@ export const getBenchmarkStatistics = async (req, res) => {
 // Test model with complete benchmark validation and detailed judgement
 export const testModelWithBenchmark = async (req, res) => {
     try {
-        const { 
+        let { 
             modelName, 
             testCaseId, 
             temperature = 0.1,
@@ -520,11 +521,44 @@ export const testModelWithBenchmark = async (req, res) => {
             provider
         } = req.body;
 
+        // =========================================
+        // SESSION MODEL FALLBACK
+        // =========================================
+        
+        // If no model provided, try to use session model
+        if (!modelName || !provider) {
+            const sessionId = req.sessionID || req.session?.id;
+            
+            if (sessionId) {
+                const sessionModel = getModelConfig(sessionId);
+                
+                if (sessionModel && sessionModel.ready) {
+                    console.log(`📦 Using session model for benchmark: ${sessionModel.modelName}`);
+                    
+                    modelName = modelName || sessionModel.modelName;
+                    provider = provider || sessionModel.modelProvider;
+                    apiConfig = apiConfig || {
+                        baseURL: sessionModel.baseUrl,
+                        apiKey: sessionModel.apiKey
+                    };
+                    
+                    console.log(`✅ Applied session model config: ${provider}/${modelName}`);
+                } else if (sessionModel && !sessionModel.ready) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Session model is not ready yet. Please wait for initialization to complete.",
+                        tip: "Poll GET /api/model/status to check when model is ready"
+                    });
+                }
+            }
+        }
+
         // Validate required fields
         if (!modelName || !testCaseId) {
             return res.status(400).json({
                 success: false,
-                message: "Missing required fields: modelName, testCaseId"
+                message: "Missing required fields: modelName, testCaseId",
+                hint: "Initialize a model first using POST /api/model/initialize, or provide model details in request"
             });
         }
 
@@ -1313,8 +1347,8 @@ export const customDatasetEval = async (req, res) => {
     try {
         console.log('Custom dataset evaluation started');
         
-        // Extract and validate request body
-        const {
+        // Extract request body
+        let {
             modelName,
             provider,
             apiConfig,
@@ -1325,6 +1359,39 @@ export const customDatasetEval = async (req, res) => {
         } = req.body;
 
         // =========================================
+        // SESSION MODEL FALLBACK
+        // =========================================
+        
+        // If no model provided, try to use session model
+        if (!modelName || !provider) {
+            const sessionId = req.sessionID || req.session?.id;
+            
+            if (sessionId) {
+                const sessionModel = getModelConfig(sessionId);
+                
+                if (sessionModel && sessionModel.ready) {
+                    console.log(`📦 Using session model: ${sessionModel.modelName}`);
+                    
+                    // Use session model as default (request params override if provided)
+                    modelName = modelName || sessionModel.modelName;
+                    provider = provider || sessionModel.modelProvider;
+                    apiConfig = apiConfig || {
+                        baseURL: sessionModel.baseUrl,
+                        apiKey: sessionModel.apiKey
+                    };
+                    
+                    console.log(`✅ Applied session model config: ${provider}/${modelName}`);
+                } else if (sessionModel && !sessionModel.ready) {
+                    return res.status(400).json({
+                        success: false,
+                        error: "Session model is not ready yet. Please wait for initialization to complete.",
+                        tip: "Poll GET /api/model/status to check when model is ready"
+                    });
+                }
+            }
+        }
+
+        // =========================================
         // VALIDATION
         // =========================================
         
@@ -1332,7 +1399,8 @@ export const customDatasetEval = async (req, res) => {
         if (!modelName || typeof modelName !== 'string' || modelName.trim().length === 0) {
             return res.status(400).json({
                 success: false,
-                error: "modelName is required",
+                error: "modelName is required (either in request or session)",
+                hint: "Initialize a model first using POST /api/model/initialize, or provide model details in request",
                 example: {
                     modelName: "microsoft/phi-2",
                     provider: "hf-user-model",

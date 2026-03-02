@@ -16,6 +16,7 @@
 
 ## ✨ Features
 
+- **🤖 Session-Based Model Management** ⭐ NEW - Initialize once, use for multiple evals with loading progress
 - **🎯 Custom Dataset Evaluation** - Test any LLM with your own JSON datasets
 - **📊 Standard Benchmarks** - AIME (math), MMLU (knowledge), MSUR (proofs)
 - **🔄 Test Case Generation** - Generate adversarial variants (ambiguity, contradiction, negation)
@@ -137,7 +138,152 @@ The following short-path aliases are available for frontend integration:
 
 ---
 
-## 🧪 Evaluation Endpoints (`/api/eval`)
+## � Model Initialization Endpoints (`/api/model`) ⭐ NEW
+
+Session-based model management for improved UX. Initialize a model once, use it for multiple evaluations.
+
+### Benefits
+- **Configure once** - No need to re-enter model details for each eval
+- **Loading visibility** - Track HuggingFace model warmup progress (2-5 min)
+- **Session persistence** - Model stays "warm" for 24 hours
+- **Better UX** - Frontend can show loading indicators and status
+
+### 1. Initialize Model
+
+#### `POST /api/model/initialize`
+
+Store model configuration in session and trigger warmup for HuggingFace models.
+
+**Request Body:**
+```json
+{
+  "modelProvider": "huggingface",
+  "modelName": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "baseUrl": "https://neollm007-user-model-space.hf.space",
+  "apiKey": "optional",
+  "adapter": "optional-lora-adapter"
+}
+```
+
+**Response (HuggingFace - Loading):**
+```json
+{
+  "success": true,
+  "message": "Model initialization started",
+  "status": "loading",
+  "sessionId": "sess_abc123",
+  "estimatedTime": "2-5 minutes for first load",
+  "note": "Poll /api/model/status to check when model is ready"
+}
+```
+
+**Response (OpenAI/Anthropic - Instant):**
+```json
+{
+  "success": true,
+  "message": "Model initialized successfully",
+  "status": "ready",
+  "sessionId": "sess_abc123",
+  "modelProvider": "openai",
+  "modelName": "gpt-4"
+}
+```
+
+### 2. Check Model Status
+
+#### `GET /api/model/status`
+
+Poll this endpoint to check if the model is ready for inference.
+
+**Response (Loading):**
+```json
+{
+  "success": true,
+  "status": "loading",
+  "message": "Model is being loaded in HuggingFace Space...",
+  "progress": 65,
+  "modelProvider": "huggingface",
+  "modelName": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "initializedAt": "2024-01-20T10:30:00.000Z"
+}
+```
+
+**Response (Ready):**
+```json
+{
+  "success": true,
+  "status": "ready",
+  "message": "Model is ready for inference",
+  "modelProvider": "huggingface",
+  "modelName": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "initializedAt": "2024-01-20T10:30:00.000Z"
+}
+```
+
+**Response (Not Initialized):**
+```json
+{
+  "success": false,
+  "error": "No model configured for this session",
+  "status": "not_initialized",
+  "message": "Please initialize a model first using POST /api/model/initialize"
+}
+```
+
+### 3. Clear Model
+
+#### `DELETE /api/model/clear`
+
+Remove model configuration from session.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Model configuration cleared from session"
+}
+```
+
+### Usage with Evaluation Endpoints
+
+Once a model is initialized and ready, `/api/eval/custom` and `/api/eval/benchmark` automatically use the session model if no model is specified in the request.
+
+**Example Flow:**
+```javascript
+// 1. Initialize model
+POST /api/model/initialize
+{
+  "modelProvider": "huggingface",
+  "modelName": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "baseUrl": "https://neollm007-user-model-space.hf.space"
+}
+
+// 2. Poll status until ready
+GET /api/model/status  // Returns "loading"
+// ... wait 10 seconds ...
+GET /api/model/status  // Returns "loading"
+// ... wait 10 seconds ...
+GET /api/model/status  // Returns "ready" ✅
+
+// 3. Run evaluation WITHOUT specifying model
+POST /api/eval/custom
+{
+  "dataset": [
+    {"input": "What is 2+2?", "expected": "4"}
+  ]
+  // No modelName, provider, or apiConfig needed!
+}
+```
+
+**Important:** 
+- Use `credentials: 'include'` in fetch() or `-b/-c cookies.txt` in cURL to persist session
+- HuggingFace models take 2-5 minutes for first load (cold start)
+- Frontier models (OpenAI, Anthropic) are instantly ready
+- See [MODEL_INITIALIZATION_TESTING.md](MODEL_INITIALIZATION_TESTING.md) for detailed testing guide
+
+---
+
+## �🧪 Evaluation Endpoints (`/api/eval`)
 
 ### 1. Custom Dataset Evaluation ⭐ RECOMMENDED FOR FRONTEND
 

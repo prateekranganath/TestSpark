@@ -1,4 +1,5 @@
 import express from 'express';
+import session from 'express-session';
 import dotenv from 'dotenv';
 import connectDB from './db/connectdb.js';
 
@@ -6,6 +7,7 @@ import connectDB from './db/connectdb.js';
 import evalRoutes from './routes/eval.routes.js';
 import generatorRoutes from './routes/generator.routes.js';
 import judgeRoutes from './routes/judge.routes.js';
+import modelRoutes from './routes/model.routes.js';
 
 // Import controllers for direct aliasing
 import { 
@@ -25,6 +27,18 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Session middleware (for model initialization persistence)
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'testspark-secret-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production' // HTTPS in production
+  }
+}));
 
 // CORS middleware (enabled for frontend integration)
 app.use((req, res, next) => {
@@ -46,6 +60,7 @@ app.get('/', (req, res) => {
       evaluation: '/api/eval',
       generator: '/api/generator',
       judge: '/api/judge',
+      model: '/api/model',
       // Frontend-compatible aliases
       runs: '/api/runs',
       dashboard: '/api/dashboard',
@@ -68,6 +83,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/eval', evalRoutes);
 app.use('/api/generator', generatorRoutes);
 app.use('/api/judge', judgeRoutes);
+app.use('/api/model', modelRoutes);
 
 // Frontend compatibility aliases - direct controller calls
 // These allow the frontend to use shorter endpoint paths
@@ -120,6 +136,7 @@ app.listen(PORT, async () => {
     console.log(`📊 Evaluation API: http://localhost:${PORT}/api/eval`);
     console.log(`🔨 Generator API: http://localhost:${PORT}/api/generator`);
     console.log(`⚖️  Judge API: http://localhost:${PORT}/api/judge`);
+    console.log(`🤖 Model API: http://localhost:${PORT}/api/model`);
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
     process.exit(1);
