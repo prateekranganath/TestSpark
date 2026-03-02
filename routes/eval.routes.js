@@ -12,7 +12,8 @@ import {
     comprehensiveModelTest,
     customDatasetEval,
     getDashboardStats,
-    compareModels
+    compareModels,
+    runBenchmarkSuite
 } from '../controllers/eval.controller.js';
 
 const router = express.Router();
@@ -38,8 +39,9 @@ router.post('/runs/:evalRunId/start', startEvalRun);
 // Run single evaluation
 router.post('/evaluate', runSingleEvaluation);
 
-// Test model with complete benchmark validation
-router.post('/test-benchmark', testModelWithBenchmark);
+// Test model with full benchmark suite (AIME, MMLU, MSUR)
+// NEW: Accepts benchmarkType instead of testCaseId
+router.post('/test-benchmark', runBenchmarkSuite);
 
 // Comprehensive test: Generated cases + All benchmarks
 router.post('/comprehensive-test', comprehensiveModelTest);
@@ -52,7 +54,7 @@ router.delete('/runs/:evalRunId', deleteEvalRun);
 
 // Frontend compatibility aliases
 router.post('/custom', customDatasetEval);  // Alias for /custom-dataset
-router.post('/benchmark', testModelWithBenchmark);  // Alias for /test-benchmark
+router.post('/benchmark', runBenchmarkSuite);  // Alias for /test-benchmark (updated)
 router.get('/history', getAllEvalRuns);  // Alias for /runs
 
 // Dashboard and comparison endpoints

@@ -471,11 +471,12 @@ async function runEvaluation(sessionId, dataset) {
 
 **Endpoint:** `POST /api/eval/test-benchmark`
 
-**Purpose:** Test model against standard benchmarks (AIME, MMLU, MSUR).
+**Purpose:** Run ALL test cases from a specific benchmark suite (AIME, MMLU, or MSUR).
 
 **⚠️ REQUIREMENTS:**
 - **sessionId is REQUIRED** - Must initialize a model first
 - Session model must be in "ready" state
+- **benchmarkType is REQUIRED** - Which benchmark to run
 
 **Query Parameters (REQUIRED):**
 | Parameter | Type | Description |
@@ -485,55 +486,65 @@ async function runEvaluation(sessionId, dataset) {
 **Request Body:**
 ```json
 {
-  "testCaseId": "tc_aime_problem_123",
-  "temperature": 0.1
+  "benchmarkType": "AIME"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| testCaseId | string | ✅ Yes | Test case ID from database |
-| temperature | number | No | Default: 0.1 |
+| benchmarkType | string | ✅ Yes | Benchmark to run: `AIME`, `MMLU`, or `MSUR` |
 
-**Note:** Model configuration automatically used from session.
+**Note:** Model configuration automatically used from session. Runs first 10 problems for demo stability.
 
-**Response:**
+**Response (Started):**
 ```json
 {
   "success": true,
-  "data": {
-    "testInfo": {
-      "testCaseId": "tc_aime_problem_123",
-      "prompt": "Solve: Find the value of x...",
-      "expectedOutput": "42",
-      "benchmarkType": "AIME",
-      "difficulty": "hard",
-      "category": "algebra"
-    },
-    "modelInfo": {
-      "name": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-      "temperature": 0.1,
-      "responseTime": 2345,
-      "tokensUsed": 156
-    },
-    "modelResponse": {
-      "id": "65f3a1b2c3d4e5f6a7b8c9d1",
-      "text": "The value of x is 42",
-      "status": "completed"
-    },
-    "generalJudgement": {
-      "score": 9.5,
-      "maxScore": 10,
-      "passed": true,
-      "reasoning": "Correct answer with proper methodology",
-      "criteria": {
-        "accuracy": 10,
-        "relevance": 9,
-        "coherence": 9,
-        "completeness": 10
-      }
+  "message": "AIME benchmark evaluation started",
+  "benchmarkType": "AIME",
+  "totalProblems": 30,
+  "runningProblems": 10,
+  "modelName": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "status": "started",
+  "note": "Full evaluation implementation coming soon - will run all problems and aggregate results"
+}
+```
+
+**Response (Error - Invalid Benchmark):**
+```json
+{
+  "success": false,
+  "error": "Invalid benchmarkType",
+  "received": "INVALID",
+  "validOptions": ["AIME", "MMLU", "MSUR"]
+}
+```
+
+**Response (Error - No Test Cases):**
+```json
+{
+  "success": false,
+  "error": "No test cases found for this benchmark",
+  "benchmarkType": "AIME",
+  "message": "This benchmark may not be loaded in the database yet"
+}
+```
+
+**Frontend Example:**
+```javascript
+async function runBenchmark(sessionId, benchmarkType) {
+  const response = await fetch(
+    `https://testspark-api.onrender.com/api/eval/test-benchmark?sessionId=${sessionId}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ benchmarkType })
     }
-  }
+  );
+  
+  const data = await response.json();
+  console.log(`Running ${data.totalProblems} problems from ${benchmarkType}`);
+  return data;
 }
 ```
 

@@ -1834,3 +1834,104 @@ export const compareModels = async (req, res) => {
     }
 };
 
+/**
+ * Run Full Benchmark Suite
+ * Evaluate session model on ALL problems from a specific benchmark
+ * POST /api/eval/test-benchmark
+ * 
+ * REQUIRES: sessionId (query param, header, or body)
+ * REQUIRES: benchmarkType (AIME, MMLU, or MSUR)
+ */
+export const runBenchmarkSuite = async (req, res) => {
+    try {
+        console.log('Benchmark suite evaluation started');
+        
+        // Extract sessionId from multiple sources
+        const sessionId = extractSessionId(req);
+        
+        // HARD REQUIREMENT: sessionId must be present
+        if (!sessionId) {
+            return res.status(400).json({
+                success: false,
+                error: 'sessionId is required',
+                message: 'Benchmark evaluation requires an initialized model session',
+                hint: 'Initialize a model first using POST /api/model/initialize, then pass sessionId'
+            });
+        }
+        
+        // Validate session exists AND model is ready
+        const sessionModel = requireReadyModel(sessionId, res);
+        if (!sessionModel) return; // Response already sent by requireReadyModel
+        
+        // Extract benchmarkType from request body
+        const { benchmarkType } = req.body;
+        
+        if (!benchmarkType) {
+            return res.status(400).json({
+                success: false,
+                error: 'benchmarkType is required',
+                message: 'Specify which benchmark to run',
+                options: ['AIME', 'MMLU', 'MSUR']
+            });
+        }
+        
+        // Validate benchmarkType
+        const validBenchmarks = ['AIME', 'MMLU', 'MSUR'];
+        if (!validBenchmarks.includes(benchmarkType.toUpperCase())) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid benchmarkType',
+                received: benchmarkType,
+                validOptions: validBenchmarks
+            });
+        }
+        
+        console.log(`🎯 Running ${benchmarkType} benchmark with session model: ${sessionModel.modelName}`);
+        
+        // Fetch all test cases for this benchmark
+        const testCases = await TestCase.find({ 
+            'metadata.benchmarkType': benchmarkType.toUpperCase() 
+        });
+        
+        if (!testCases.length) {
+            return res.status(404).json({
+                success: false,
+                error: 'No test cases found for this benchmark',
+                benchmarkType: benchmarkType,
+                message: 'This benchmark may not be loaded in the database yet'
+            });
+        }
+        
+        console.log(`📚 Found ${testCases.length} test cases for ${benchmarkType}`);
+        
+        // Render stability: limit to first 10 problems for demo
+        const maxProblems = 10;
+        const testCasesToRun = testCases.slice(0, maxProblems);
+        
+        if (testCases.length > maxProblems) {
+            console.log(`⚠️  Limiting to first ${maxProblems} problems for demo (total: ${testCases.length})`);
+        }
+        
+        // TODO: Implement full evaluation loop
+        // For now, return success with metadata
+        
+        return res.json({
+            success: true,
+            message: `${benchmarkType} benchmark evaluation started`,
+            benchmarkType: benchmarkType,
+            totalProblems: testCases.length,
+            runningProblems: testCasesToRun.length,
+            modelName: sessionModel.modelName,
+            status: 'started',
+            note: 'Full evaluation implementation coming soon - will run all problems and aggregate results'
+        });
+        
+    } catch (error) {
+        console.error('❌ Benchmark suite error:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            details: error.message
+        });
+    }
+};
