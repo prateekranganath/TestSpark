@@ -131,12 +131,35 @@ async function inferUserModelSpace(modelName, messages, parameters) {
 
         console.log(`Loading user model: ${modelName} from HF Space...`);
 
-        // Call the FastAPI /infer endpoint
-        const response = await fetch(`${userModelSpaceEndpoint}/infer`, {
+        // Step 1: Load the model (with optional adapter)
+        // The Space will skip reload if model is already loaded
+        const loadResponse = await fetch(`${userModelSpaceEndpoint}/load`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
-                model_name: modelName,
+                model: modelName,
+                adapter: parameters.adapter || null
+            })
+        });
+
+        if (!loadResponse.ok) {
+            const errorText = await loadResponse.text();
+            throw new Error(`HF User Model Space load error: ${loadResponse.statusText} - ${errorText}`);
+        }
+
+        const loadResult = await loadResponse.json();
+        
+        if (loadResult.error) {
+            throw new Error(`Model load failed: ${loadResult.error}`);
+        }
+
+        console.log(`Model loaded: ${loadResult.status} - ${loadResult.model}${loadResult.adapter ? ' with adapter ' + loadResult.adapter : ''}`);
+
+        // Step 2: Run inference
+        const inferResponse = await fetch(`${userModelSpaceEndpoint}/infer`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
                 prompt: prompt,
                 temperature: parameters.temperature || 0.7,
                 max_tokens: parameters.max_tokens || 512,
@@ -144,20 +167,24 @@ async function inferUserModelSpace(modelName, messages, parameters) {
             })
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HF User Model Space error: ${response.statusText} - ${errorText}`);
+        if (!inferResponse.ok) {
+            const errorText = await inferResponse.text();
+            throw new Error(`HF User Model Space infer error: ${inferResponse.statusText} - ${errorText}`);
         }
 
-        const result = await response.json();
+        const inferResult = await inferResponse.json();
+        
+        if (inferResult.error) {
+            throw new Error(`Inference failed: ${inferResult.error}`);
+        }
         
         // FastAPI returns the response directly
         return {
-            text: result.text,
+            text: inferResult.text,
             usage: {
-                prompt_tokens: result.usage?.prompt_tokens || 0,
-                completion_tokens: result.usage?.completion_tokens || 0,
-                total_tokens: result.usage?.total_tokens || 0
+                prompt_tokens: inferResult.usage?.prompt_tokens || 0,
+                completion_tokens: inferResult.usage?.completion_tokens || 0,
+                total_tokens: (inferResult.usage?.prompt_tokens || 0) + (inferResult.usage?.completion_tokens || 0)
             }
         };
     } catch (error) {
