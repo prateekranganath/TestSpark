@@ -75,7 +75,7 @@ JUDGE_MODEL=gpt-4
 
 ## 📡 API Endpoints
 
-**Base URL:** `http://localhost:3000` (development) or `https://your-app.onrender.com` (production)
+**Base URL:** `http://localhost:3000` (development) or `https://testspark-api.onrender.com` (production)
 
 All endpoints return JSON with the following structure:
 ```json
@@ -99,7 +99,12 @@ Get API information and available endpoints.
   "endpoints": {
     "evaluation": "/api/eval",
     "generator": "/api/generator",
-    "judge": "/api/judge"
+    "judge": "/api/judge",
+    "runs": "/api/runs",
+    "dashboard": "/api/dashboard",
+    "compare": "/api/compare",
+    "generate": "/api/generate (POST)",
+    "judgeEvaluate": "/api/judge (POST)"
   }
 }
 ```
@@ -111,10 +116,24 @@ Health check endpoint for monitoring.
 ```json
 {
   "status": "OK",
-  "timestamp": "2026-02-28T12:00:00.000Z",
+  "timestamp": "2026-03-02T12:00:00.000Z",
   "database": "connected"
 }
 ```
+
+### Frontend-Compatible Aliases
+
+The following short-path aliases are available for frontend integration:
+
+| Alias | Maps To | Method | Description |
+|-------|---------|--------|-------------|
+| `/api/runs` | `/api/eval/history` | GET | Evaluation run history |
+| `/api/dashboard` | `/api/eval/dashboard` | GET | Dashboard statistics |
+| `/api/compare` | `/api/eval/compare` | GET | Model comparison |
+| `/api/generate` | `/api/generator/generate` | POST | Generate test cases |
+| `/api/judge` | `/api/judge/evaluate` | POST | Judge evaluation |
+
+**Both paths work** - use whichever your frontend expects.
 
 ---
 
@@ -873,6 +892,496 @@ async function safeApiCall(apiFunction, ...args) {
   }
 }
 ```
+
+---
+
+## 🧪 Local Frontend Testing Guide
+
+### Prerequisites
+
+- Backend deployed at: `https://testspark-api.onrender.com` (or your Render URL)
+- Frontend project cloned locally
+- Node.js 18+ installed
+
+### Step 1: Verify Backend is Live
+
+Before starting frontend testing, confirm backend endpoints are working:
+
+```powershell
+# Test health check
+Invoke-RestMethod -Uri "https://testspark-api.onrender.com/api/health"
+
+# Test root endpoint (should show new aliases)
+Invoke-RestMethod -Uri "https://testspark-api.onrender.com/"
+
+# Test new frontend-compatible endpoints
+Invoke-RestMethod -Uri "https://testspark-api.onrender.com/api/dashboard"
+Invoke-RestMethod -Uri "https://testspark-api.onrender.com/api/runs"
+Invoke-RestMethod -Uri "https://testspark-api.onrender.com/api/compare"
+```
+
+**Expected:** All should return `200 OK` with JSON responses.
+
+### Step 2: Configure Frontend API Base URL
+
+Navigate to your frontend project:
+
+```powershell
+cd path\to\testspark-frontend
+```
+
+**Verify `src/services/api.js` configuration:**
+
+```javascript
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: "https://testspark-api.onrender.com",  // ✅ Your deployed backend
+  headers: {
+    "Content-Type": "application/json",
+  },
+  timeout: 120000  // 2 minutes for slow model loading
+});
+
+export default api;
+```
+
+**Important Checklist:**
+- ✅ `baseURL` must point to your deployed backend
+- ✅ No trailing slash on the URL
+- ✅ Include `https://` protocol
+- ✅ Timeout should be at least 120 seconds (first model load is slow)
+
+### Step 3: Install Dependencies
+
+```powershell
+npm install
+```
+
+### Step 4: Start Frontend Development Server
+
+```powershell
+npm run dev
+```
+
+**Expected output:**
+```
+VITE v5.x.x  ready in xxx ms
+➜  Local:   http://localhost:5173/
+➜  Network: use --host to expose
+```
+
+### Step 5: Testing Checklist
+
+Open `http://localhost:5173` in your browser and test each feature:
+
+#### ✅ **Test 1: Dashboard Page**
+
+**URL:** `http://localhost:5173/dashboard`
+
+**What to check:**
+- Statistics cards display (Total Runs, Completed, Active, Avg Accuracy)
+- Recent runs list renders
+- No console errors (press F12 → Console tab)
+
+**Backend call:** `GET /api/dashboard`
+
+**Expected response structure:**
+```json
+{
+  "success": true,
+  "data": {
+    "totalRuns": 0,
+    "completedRuns": 0,
+    "activeRuns": 0,
+    "averageAccuracy": "0.0%",
+    "recentActivity": 0,
+    "lastRunTime": null
+  }
+}
+```
+
+**Note:** Stats will be `0` until you run at least one evaluation.
+
+---
+
+#### ✅ **Test 2: Runs/Evaluation History**
+
+**URL:** `http://localhost:5173/runs`
+
+**What to check:**
+- Page loads without errors
+- "Create New Run" button visible
+- Table/cards render (may be empty initially)
+
+**Backend call:** `GET /api/runs`
+
+**Expected response:**
+```json
+{
+  "success": true,
+  "count": 0,
+  "evaluations": []
+}
+```
+
+---
+
+#### ✅ **Test 3: Custom Evaluation (Most Important)**
+
+**URL:** `http://localhost:5173/evaluation` or `/custom-evaluation`
+
+**Test steps:**
+
+1. **Fill the form:**
+   - Model Name: `TinyLlama/TinyLlama-1.1B-Chat-v1.0`
+   - Provider: `hf-user-model`
+   - Evaluation Type: `contains`
+   
+2. **Add test case:**
+   - Input: `What is 2+2?`
+   - Expected: `4`
+
+3. **Submit** and wait (2-5 minutes for first request)
+
+**Backend call:** `POST /api/eval/custom`
+
+**Request body:**
+```json
+{
+  "modelName": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "provider": "hf-user-model",
+  "evaluationType": "contains",
+  "dataset": [
+    {"input": "What is 2+2?", "expected": "4"}
+  ]
+}
+```
+
+**Expected result:**
+```json
+{
+  "success": true,
+  "evaluationId": "...",
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "accuracy": "100.0%",
+    "totalTime": "45.2s"
+  },
+  "results": [...]
+}
+```
+
+**⏱️ Performance note:** 
+- First request: 2-5 minutes (model download + loading)
+- Subsequent requests: 10-30 seconds (model cached)
+
+---
+
+#### ✅ **Test 4: Benchmark Evaluation**
+
+**URL:** `http://localhost:5173/benchmark`
+
+**Test steps:**
+
+1. Select benchmark: `AIME` (math problems)
+2. Choose model: `TinyLlama/TinyLlama-1.1B-Chat-v1.0`
+3. Set limit: `3` (start small)
+4. Click "Run Benchmark"
+
+**Backend call:** `POST /api/eval/benchmark`
+
+**Request body:**
+```json
+{
+  "modelName": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "provider": "hf-user-model",
+  "benchmarkName": "AIME",
+  "limit": 3
+}
+```
+
+**Note:** This will take 3-5 minutes for 3 problems.
+
+---
+
+#### ✅ **Test 5: Model Comparison**
+
+**URL:** `http://localhost:5173/compare`
+
+**What to check:**
+- Page loads without errors
+- Comparison table/chart renders
+- Shows models you've tested (empty until evaluations run)
+
+**Backend call:** `GET /api/compare`
+
+**Expected response:**
+```json
+{
+  "success": true,
+  "data": {
+    "models": [
+      {
+        "modelName": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "provider": "hf-user-model",
+        "totalRuns": 2,
+        "totalTests": 5,
+        "totalPassed": 3,
+        "averageAccuracy": "60.0%",
+        "lastRun": "2026-03-02T10:30:45.210Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+#### ✅ **Test 6: Test Case Generator**
+
+**URL:** `http://localhost:5173/generator`
+
+**Test steps:**
+
+1. Enter parent prompt ID (create one first if needed)
+2. Select pattern types:
+   - ☑️ Ambiguity
+   - ☑️ Contradiction
+   - ☑️ Negation
+3. Click "Generate"
+
+**Backend call:** `POST /api/generate`
+
+**Request body:**
+```json
+{
+  "parentPromptId": "tc_001",
+  "types": ["ambiguity", "contradiction", "negation"],
+  "perType": 1,
+  "useJudgeSpace": true
+}
+```
+
+**Note:** Requires parent test case to exist in database first.
+
+---
+
+#### ✅ **Test 7: Judge Evaluation**
+
+**URL:** `http://localhost:5173/judge`
+
+**Test steps:**
+
+1. Enter prompt: `What is 2+2?`
+2. Enter response: `The answer is 4`
+3. Select adapter: `base`
+4. Click "Evaluate"
+
+**Backend call:** `POST /api/judge`
+
+**Request body:**
+```json
+{
+  "prompt": "What is 2+2?",
+  "response": "The answer is 4",
+  "adapter": "base"
+}
+```
+
+**Expected result:**
+```json
+{
+  "success": true,
+  "evaluation": {
+    "score": 9.5,
+    "criteria": {
+      "accuracy": 10,
+      "relevance": 10,
+      "coherence": 9,
+      "completeness": 9
+    },
+    "reasoning": "Correct and concise...",
+    "passed": true,
+    "feedback": "Excellent response"
+  }
+}
+```
+
+---
+
+### Common Issues & Solutions
+
+#### 🔴 **Issue 1: CORS Error**
+
+```
+Access to XMLHttpRequest blocked by CORS policy
+```
+
+**Solution:**
+- Backend has CORS enabled, but may need 1-2 minutes to deploy
+- Clear browser cache (Ctrl+Shift+Delete)
+- Restart frontend dev server
+- Wait for backend deployment to complete
+
+---
+
+#### 🔴 **Issue 2: Request Timeout**
+
+```
+AxiosError: timeout of 120000ms exceeded
+```
+
+**Cause:** First HuggingFace model request takes 2-5 minutes (downloading ~4GB model)
+
+**Solutions:**
+
+1. **Increase timeout** in `src/services/api.js`:
+   ```javascript
+   timeout: 300000  // 5 minutes
+   ```
+
+2. **Use faster model:**
+   - Model: `Qwen/Qwen2.5-0.5B-Instruct` (smaller, faster)
+   - Only ~2GB download
+
+3. **Test with OpenAI instead** (instant, requires API key):
+   ```json
+   {
+     "modelName": "gpt-3.5-turbo",
+     "provider": "openai",
+     "apiConfig": {"apiKey": "sk-..."}
+   }
+   ```
+
+---
+
+#### 🔴 **Issue 3: 404 Not Found**
+
+```
+POST /api/eval/custom → 404
+```
+
+**Solutions:**
+- Wait 2 minutes after git push for backend deployment
+- Test backend directly: `curl https://testspark-api.onrender.com/api/health`
+- Check Render dashboard for deployment status
+- Verify `baseURL` in `src/services/api.js` is correct
+
+---
+
+#### 🔴 **Issue 4: Empty Dashboard / No Data**
+
+**This is normal!** 
+
+Dashboard will show zeros until you:
+1. Run at least one custom evaluation (Test 3)
+2. Wait for it to complete
+3. Refresh dashboard page
+
+**To populate data:**
+- Run 2-3 custom evaluations with different models
+- Try one benchmark test
+- Data will then appear in Dashboard and Compare pages
+
+---
+
+### Browser DevTools Monitoring
+
+**Open DevTools (F12) → Network tab** to monitor API calls:
+
+**On Dashboard page load:**
+```
+✅ GET /api/dashboard → 200 OK (0.5s)
+✅ GET /api/runs → 200 OK (0.3s)
+```
+
+**During evaluation submission:**
+```
+⏳ POST /api/eval/custom → (pending... 2-5 min)
+✅ POST /api/eval/custom → 200 OK
+```
+
+**What to look for:**
+- ✅ All requests show `200 OK` status
+- ✅ Response tab shows JSON data
+- ❌ Red requests = errors (check response for details)
+- ❌ CORS errors = backend not deployed or wrong URL
+
+---
+
+### Quick Backend Verification Script
+
+Run this in PowerShell before testing frontend:
+
+```powershell
+Write-Host "Testing Backend Endpoints..." -ForegroundColor Cyan
+
+Write-Host "`n1. Health Check" -ForegroundColor Yellow
+Invoke-RestMethod -Uri "https://testspark-api.onrender.com/api/health"
+
+Write-Host "`n2. Dashboard Endpoint" -ForegroundColor Yellow
+Invoke-RestMethod -Uri "https://testspark-api.onrender.com/api/dashboard"
+
+Write-Host "`n3. Runs History" -ForegroundColor Yellow
+Invoke-RestMethod -Uri "https://testspark-api.onrender.com/api/runs"
+
+Write-Host "`n4. Model Comparison" -ForegroundColor Yellow
+Invoke-RestMethod -Uri "https://testspark-api.onrender.com/api/compare"
+
+Write-Host "`n✅ All endpoints responding!" -ForegroundColor Green
+```
+
+---
+
+### Success Criteria
+
+✅ **Frontend is working correctly when:**
+
+1. ✅ Dashboard page loads and shows statistics
+2. ✅ Runs page displays without errors
+3. ✅ Custom evaluation form submits successfully
+4. ✅ At least one evaluation completes and shows results
+5. ✅ Browser console shows no CORS errors
+6. ✅ Network tab shows `200 OK` responses
+7. ✅ Results are saved and appear in history
+
+---
+
+### Testing Priorities
+
+**Must test (critical path):**
+1. ✅ Custom Evaluation (Test 3) - Core feature
+2. ✅ Dashboard (Test 1) - User landing page
+3. ✅ Runs History (Test 2) - Results tracking
+
+**Should test:**
+4. ✅ Benchmark (Test 4) - Standard testing
+5. ✅ Compare (Test 5) - Analytics
+
+**Nice to test:**
+6. ✅ Generator (Test 6) - Advanced feature
+7. ✅ Judge (Test 7) - Evaluation system
+
+---
+
+### Performance Expectations
+
+| Operation | First Time | Subsequent |
+|-----------|------------|------------|
+| Dashboard load | 1-2s | <1s |
+| Runs list | 1-2s | <1s |
+| Custom eval (HF) | 2-5 min | 10-30s |
+| Custom eval (OpenAI) | 3-10s | 3-10s |
+| Benchmark (3 tests) | 3-8 min | 30-90s |
+| Judge evaluation | 5-15s | 5-15s |
+
+**Note:** First HuggingFace model request is slow due to:
+1. Model download (~4GB)
+2. Model loading into memory
+3. First inference compilation
 
 ---
 
