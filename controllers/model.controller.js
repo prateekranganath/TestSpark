@@ -88,11 +88,13 @@ export async function checkStatus(req, res) {
         const sessionId = req.query.sessionId || req.headers['x-session-id'];
 
         if (!sessionId) {
-            return res.status(400).json({
+            // Return 200 with graceful error - don't break polling
+            return res.status(200).json({
                 success: false,
                 error: 'sessionId is required',
                 status: 'not_initialized',
-                hint: 'Pass sessionId as query param: /api/model/status?sessionId=xxx'
+                message: 'No sessionId provided. Initialize a model first via POST /api/model/initialize',
+                hint: 'Pass sessionId as query param: /api/model/status?sessionId=xxx or header X-Session-Id'
             });
         }
 
@@ -100,11 +102,13 @@ export async function checkStatus(req, res) {
         const modelConfig = getModelConfig(sessionId);
 
         if (!modelConfig) {
-            return res.status(404).json({
+            // Return 200 with graceful error - don't break polling
+            return res.status(200).json({
                 success: false,
                 error: 'No model configured for this session',
                 status: 'not_initialized',
-                message: 'Please initialize a model first using POST /api/model/initialize'
+                message: 'Please initialize a model first using POST /api/model/initialize',
+                sessionId: sessionId
             });
         }
 
@@ -171,9 +175,11 @@ export async function clearModel(req, res) {
         const sessionId = req.query.sessionId || req.headers['x-session-id'];
 
         if (!sessionId) {
-            return res.status(400).json({
+            // Return 200 with graceful message
+            return res.status(200).json({
                 success: false,
-                error: 'sessionId is required'
+                error: 'sessionId is required',
+                message: 'Provide sessionId as query param or X-Session-Id header'
             });
         }
 

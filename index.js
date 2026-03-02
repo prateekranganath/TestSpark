@@ -29,10 +29,26 @@ app.use(express.urlencoded({ extended: true }));
 
 // CORS middleware (simple setup for frontend integration)
 // Frontend stores sessionId and sends it as query param or header
+// No cookies/credentials needed - stateless session management
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000', 
+    'http://localhost:5174',
+    'https://testspark.vercel.app',
+    'https://testspark-frontend.vercel.app'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Session-Id');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+  
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
