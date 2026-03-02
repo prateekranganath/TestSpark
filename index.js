@@ -7,6 +7,15 @@ import evalRoutes from './routes/eval.routes.js';
 import generatorRoutes from './routes/generator.routes.js';
 import judgeRoutes from './routes/judge.routes.js';
 
+// Import controllers for direct aliasing
+import { 
+  getDashboardStats, 
+  compareModels, 
+  getAllEvalRuns 
+} from './controllers/eval.controller.js';
+import { generateTestCases } from './services/generatorservice.js';
+import { judgeModelResponse } from './controllers/judge.controller.js';
+
 // Load environment variables
 dotenv.config();
 
@@ -60,32 +69,29 @@ app.use('/api/eval', evalRoutes);
 app.use('/api/generator', generatorRoutes);
 app.use('/api/judge', judgeRoutes);
 
-// Frontend compatibility aliases (top-level routes that map to nested routes)
+// Frontend compatibility aliases - direct controller calls
 // These allow the frontend to use shorter endpoint paths
-app.get('/api/runs', (req, res) => {
-  req.url = '/history' + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '');
-  evalRoutes(req, res);
+app.get('/api/runs', getAllEvalRuns);
+app.get('/api/dashboard', getDashboardStats);
+app.get('/api/compare', compareModels);
+
+app.post('/api/generate', async (req, res) => {
+  try {
+    const generatedCases = await generateTestCases(req.body);
+    res.json({
+      success: true,
+      parentPromptId: req.body.parentPromptId,
+      generatedCases
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
-app.get('/api/dashboard', (req, res) => {
-  req.url = '/dashboard';
-  evalRoutes(req, res);
-});
-
-app.get('/api/compare', (req, res) => {
-  req.url = '/compare';
-  evalRoutes(req, res);
-});
-
-app.post('/api/generate', (req, res) => {
-  req.url = '/generate';
-  generatorRoutes(req, res);
-});
-
-app.post('/api/judge', (req, res) => {
-  req.url = '/evaluate';
-  judgeRoutes(req, res);
-});
+app.post('/api/judge', judgeModelResponse);
 
 // 404 handler
 app.use((req, res) => {
