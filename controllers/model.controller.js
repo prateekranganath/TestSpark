@@ -4,6 +4,7 @@
 
 import { storeModelConfig, getModelConfig, markModelReady, clearModelConfig } from '../services/sessionservice.js';
 import { warmupHFModel, checkHFModelStatus } from '../services/hfspaceservice.js';
+import { extractSessionId } from '../middleware/session.middleware.js';
 
 /**
  * Initialize a model for the user session
@@ -84,8 +85,8 @@ export async function initializeModel(req, res) {
  */
 export async function checkStatus(req, res) {
     try {
-        // Get sessionId from query param (no cookies needed)
-        const sessionId = req.query.sessionId || req.headers['x-session-id'];
+        // Get sessionId using normalized extraction
+        const sessionId = extractSessionId(req);
 
         if (!sessionId) {
             // Return 200 with graceful error - don't break polling
@@ -172,7 +173,8 @@ export async function checkStatus(req, res) {
  */
 export async function clearModel(req, res) {
     try {
-        const sessionId = req.query.sessionId || req.headers['x-session-id'];
+        // Get sessionId using normalized extraction
+        const sessionId = extractSessionId(req);
 
         if (!sessionId) {
             // Return 200 with graceful message

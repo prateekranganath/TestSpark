@@ -324,17 +324,22 @@ async function clearSession(sessionId) {
 
 **Purpose:** Evaluate a model with your own test cases.
 
-**Query Parameters (Optional):**
+**⚠️ REQUIREMENTS:**
+- **sessionId is REQUIRED** - Must initialize a model first
+- Session model must be in "ready" state
+- Dataset limited to max 10 test cases for demo stability
+
+**Query Parameters (REQUIRED):**
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| sessionId | string | Use session model (no modelName needed) |
+| sessionId | string | Session ID from initialize (REQUIRED) |
 
-**Request Body (With modelName):**
+**Alternative:** Send as header `X-Session-Id: sess_xxx` or in request body
+
+**Request Body:**
 ```json
 {
-  "modelName": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-  "provider": "hf-user-model",
-  "evaluationType": "exact_match",
+  "evaluationType": "contains",
   "dataset": [
     {
       "input": "What is 2+2?",
@@ -350,29 +355,14 @@ async function clearSession(sessionId) {
 }
 ```
 
-**Request Body (With sessionId - No modelName):**
-```json
-{
-  "sessionId": "sess_1709388123456_abc123",
-  "evaluationType": "contains",
-  "dataset": [
-    {
-      "input": "What is 2+2?",
-      "expected": "4"
-    }
-  ]
-}
-```
-
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| modelName | string | ⚠️ If no session | Model identifier |
-| provider | string | No | Default: `hf-user-model` |
+| dataset | array | ✅ Yes | Test cases (max 10 for demo) |
 | evaluationType | string | No | `exact_match`, `contains`, `llm_judge` (default: `exact_match`) |
-| dataset | array | ✅ Yes | Test cases (max 50) |
-| sessionId | string | ⚠️ If no modelName | Use session model |
 | temperature | number | No | Generation temperature (default: 0.7) |
 | max_tokens | number | No | Max tokens (default: 512) |
+
+**Note:** `modelName` and `provider` are automatically used from the session. No need to specify them.
 
 **Response:**
 ```json
@@ -444,6 +434,37 @@ async function runEvaluation(sessionId, dataset) {
 }
 ```
 
+**Response (Error - No SessionId):**
+```json
+{
+  "success": false,
+  "error": "sessionId is required",
+  "message": "Evaluation requires an initialized model session",
+  "hint": "Initialize a model first using POST /api/model/initialize, then pass sessionId"
+}
+```
+
+**Response (Error - Model Not Ready):**
+```json
+{
+  "success": false,
+  "error": "Model not ready",
+  "status": "loading",
+  "message": "Session model is still loading. Please wait for initialization to complete.",
+  "tip": "Poll GET /api/model/status?sessionId=sess_xxx"
+}
+```
+
+**Response (Error - Dataset Too Large):**
+```json
+{
+  "success": false,
+  "error": "Dataset too large. Maximum 10 examples allowed for demo. You provided 15.",
+  "limit": 10,
+  "provided": 15
+}
+```
+
 ---
 
 #### 2. Benchmark Testing
@@ -452,36 +473,29 @@ async function runEvaluation(sessionId, dataset) {
 
 **Purpose:** Test model against standard benchmarks (AIME, MMLU, MSUR).
 
-**Request Body (With Session):**
+**⚠️ REQUIREMENTS:**
+- **sessionId is REQUIRED** - Must initialize a model first
+- Session model must be in "ready" state
+
+**Query Parameters (REQUIRED):**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| sessionId | string | Session ID from initialize (REQUIRED) |
+
+**Request Body:**
 ```json
 {
-  "sessionId": "sess_1709388123456_abc123",
   "testCaseId": "tc_aime_problem_123",
   "temperature": 0.1
-}
-```
-
-**Request Body (With Model):**
-```json
-{
-  "modelName": "gpt-4",
-  "provider": "openai",
-  "apiConfig": {
-    "apiKey": "sk-...",
-    "baseURL": "https://api.openai.com/v1"
-  },
-  "testCaseId": "tc_aime_problem_123"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | testCaseId | string | ✅ Yes | Test case ID from database |
-| sessionId | string | ⚠️ Or modelName | Use session model |
-| modelName | string | ⚠️ Or sessionId | Model identifier |
-| provider | string | No | Model provider |
-| apiConfig | object | No | API configuration |
 | temperature | number | No | Default: 0.1 |
+
+**Note:** Model configuration automatically used from session.
 
 **Response:**
 ```json
@@ -1164,7 +1178,9 @@ DEFAULT_MAX_TOKENS=512
 
 ## Rate Limits & Constraints
 
-- **Max dataset size:** 50 test cases per evaluation
+- **Max dataset size:** 10 test cases per evaluation (demo limit for Render stability)
+- **SessionId required:** All evaluation endpoints require initialized session
+- **Model must be ready:** Status must be "ready" before evaluation
 - **HuggingFace model size:** <3B parameters (free tier)
 - **Session duration:** 24 hours (auto-cleanup)
 - **First model load:** 2-5 minutes (cold start)

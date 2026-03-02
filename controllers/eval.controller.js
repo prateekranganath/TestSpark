@@ -7,6 +7,7 @@ import ModelResponse from "../models/modelresponse.js";
 import Judgement from "../models/judgement.js";
 import CustomEval from "../models/customeval.js";
 import { getModelConfig } from "../services/sessionservice.js";
+import { extractSessionId, requireReadyModel } from "../middleware/session.middleware.js";
 
 // Create a new evaluation run
 export const createEvalRun = async (req, res) => {
@@ -512,53 +513,56 @@ export const getBenchmarkStatistics = async (req, res) => {
 export const testModelWithBenchmark = async (req, res) => {
     try {
         let { 
-            modelName, 
             testCaseId, 
             temperature = 0.1,
             client,
-            parameters,
-            apiConfig,
-            provider
+            parameters
         } = req.body;
 
         // =========================================
-        // SESSION MODEL FALLBACK
+        // STRICT SESSION REQUIREMENT
         // =========================================
         
-        // If no model provided, try to use session model
-        if (!modelName || !provider) {
-            // Get sessionId from query, header, or body
-            const sessionId = req.query.sessionId || req.headers['x-session-id'] || req.body.sessionId;
-            
-            if (sessionId) {
-                const sessionModel = getModelConfig(sessionId);
-                
-                if (sessionModel && sessionModel.ready) {
-                    console.log(`📦 Using session model for benchmark: ${sessionModel.modelName}`);
-                    
-                    modelName = modelName || sessionModel.modelName;
-                    provider = 'hf-user-model';
-                    apiConfig = apiConfig || {
-                        baseURL: sessionModel.baseUrl
-                    };
-                    
-                    console.log(`✅ Applied session model config: ${provider}/${modelName}`);
-                } else if (sessionModel && !sessionModel.ready) {
-                    return res.status(400).json({
-                        success: false,
-                        message: "Session model is not ready yet. Please wait for initialization to complete.",
-                        tip: "Poll GET /api/model/status to check when model is ready"
-                    });
-                }
-            }
-        }
-
-        // Validate required fields
-        if (!modelName || !testCaseId) {
+        // Extract sessionId from multiple sources
+        const sessionId = extractSessionId(req);
+        
+        // HARD REQUIREMENT: sessionId must be present
+        if (!sessionId) {
             return res.status(400).json({
                 success: false,
-                message: "Missing required fields: modelName, testCaseId",
-                hint: "Initialize a model first using POST /api/model/initialize, or provide model details in request"
+                error: 'sessionId is required',
+                message: 'Benchmark testing requires an initialized model session',
+                hint: 'Initialize a model first using POST /api/model/initialize, then pass sessionId',
+                example: {
+                    url: 'POST /api/eval/test-benchmark?sessionId=sess_xxx',
+                    body: {
+                        testCaseId: 'tc_aime_problem_123'
+                    }
+                }
+            });
+        }
+        
+        // Validate session exists AND model is ready
+        const sessionModel = requireReadyModel(sessionId, res);
+        if (!sessionModel) return; // Response already sent by requireReadyModel
+        
+        console.log(`📦 Using session model for benchmark: ${sessionModel.modelName}`);
+        
+        // Use session model configuration
+        const modelName = sessionModel.modelName;
+        const provider = 'hf-user-model';
+        const apiConfig = {
+            baseURL: sessionModel.baseUrl
+        };
+        
+        console.log(`✅ Session model ready: ${provider}/${modelName}`);
+
+        // Validate required fields
+        if (!testCaseId) {
+            return res.status(400).json({
+                success: false,
+                error: "testCaseId is required",
+                message: "Provide a valid test case ID to run benchmark test"
             });
         }
 
@@ -1342,6 +1346,9 @@ export const testCustomModel = async (req, res) => {
  * Custom Dataset Evaluation
  * User provides their own dataset and we test the model on it
  * POST /api/eval/custom-dataset
+ * 
+ * REQUIRES: sessionId (query param, header, or body)
+ * The session model must be initialized and ready
  */
 export const customDatasetEval = async (req, res) => {
     try {
@@ -1349,9 +1356,6 @@ export const customDatasetEval = async (req, res) => {
         
         // Extract request body
         let {
-            modelName,
-            provider,
-            apiConfig,
             dataset,
             evaluationType = 'exact_match',
             temperature = 0.7,
@@ -1359,55 +1363,46 @@ export const customDatasetEval = async (req, res) => {
         } = req.body;
 
         // =========================================
-        // SESSION MODEL FALLBACK
+        // STRICT SESSION REQUIREMENT
         // =========================================
         
-        // If no model provided, try to use session model
-        if (!modelName || !provider) {
-            // Get sessionId from query, header, or body
-            const sessionId = req.query.sessionId || req.headers['x-session-id'] || req.body.sessionId;
-            
-            if (sessionId) {
-                const sessionModel = getModelConfig(sessionId);
-                
-                if (sessionModel && sessionModel.ready) {
-                    console.log(`📦 Using session model: ${sessionModel.modelName}`);
-                    
-                    // Use session model as default (request params override if provided)
-                    modelName = modelName || sessionModel.modelName;
-                    provider = 'hf-user-model';
-                    apiConfig = apiConfig || {
-                        baseURL: sessionModel.baseUrl
-                    };
-                    
-                    console.log(`✅ Applied session model config: ${provider}/${modelName}`);
-                } else if (sessionModel && !sessionModel.ready) {
-                    return res.status(400).json({
-                        success: false,
-                        error: "Session model is not ready yet. Please wait for initialization to complete.",
-                        tip: "Poll GET /api/model/status?sessionId=" + sessionId
-                    });
-                }
-            }
-        }
-
-        // =========================================
-        // VALIDATION
-        // =========================================
+        // Extract sessionId from multiple sources
+        const sessionId = extractSessionId(req);
         
-        // Validate model name
-        if (!modelName || typeof modelName !== 'string' || modelName.trim().length === 0) {
+        // HARD REQUIREMENT: sessionId must be present
+        if (!sessionId) {
             return res.status(400).json({
                 success: false,
-                error: "modelName is required (either in request or session)",
-                hint: "Initialize a model first using POST /api/model/initialize, or provide model details in request",
+                error: 'sessionId is required',
+                message: 'Evaluation requires an initialized model session',
+                hint: 'Initialize a model first using POST /api/model/initialize, then pass sessionId',
                 example: {
-                    modelName: "microsoft/phi-2",
-                    provider: "hf-user-model",
-                    dataset: [{ input: "question", expected: "answer" }]
+                    url: 'POST /api/eval/custom-dataset?sessionId=sess_xxx',
+                    body: {
+                        dataset: [{ input: 'question', expected: 'answer' }]
+                    }
                 }
             });
         }
+        
+        // Validate session exists AND model is ready
+        const sessionModel = requireReadyModel(sessionId, res);
+        if (!sessionModel) return; // Response already sent by requireReadyModel
+        
+        console.log(`📦 Using session model: ${sessionModel.modelName}`);
+        
+        // Use session model configuration
+        const modelName = sessionModel.modelName;
+        const provider = 'hf-user-model';
+        const apiConfig = {
+            baseURL: sessionModel.baseUrl
+        };
+        
+        console.log(`✅ Session model ready: ${provider}/${modelName}`);
+
+        // =========================================
+        // DATASET VALIDATION
+        // =========================================
 
         // Validate dataset structure
         if (!dataset) {
@@ -1437,12 +1432,14 @@ export const customDatasetEval = async (req, res) => {
             });
         }
 
-        // Hackathon limit: max 50 examples
-        if (dataset.length > 50) {
+        // Render timeout protection: max 10 examples for stability
+        if (dataset.length > 10) {
             return res.status(400).json({
                 success: false,
-                error: `Dataset too large. Maximum 50 examples allowed. You provided ${dataset.length}.`,
-                tip: "For large datasets, contact us for enterprise solutions."
+                error: `Dataset too large. Maximum 10 examples allowed for demo. You provided ${dataset.length}.`,
+                tip: "For larger datasets, consider batching requests or contact us for enterprise solutions.",
+                limit: 10,
+                provided: dataset.length
             });
         }
 
