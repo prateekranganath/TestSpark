@@ -1904,6 +1904,8 @@ export const runBenchmarkSuite = async (req, res) => {
         const testCases = await TestCase.find({ 
             'metadata.benchmarkType': normalizedBenchmarkType
         });
+
+        console.log("Fetched test cases:", testCases.length);
         
         if (!testCases.length) {
             return res.status(404).json({
@@ -1923,6 +1925,8 @@ export const runBenchmarkSuite = async (req, res) => {
         if (testCases.length > maxProblems) {
             console.log(`⚠️  Limiting to first ${maxProblems} problems for demo (total: ${testCases.length})`);
         }
+
+        console.log("About to create EvalRun");
         
         // Run full evaluation loop (bounded by maxProblems for render stability)
         const benchmarkEvalRun = await EvalRun.create({
@@ -1947,6 +1951,8 @@ export const runBenchmarkSuite = async (req, res) => {
             startTime: new Date()
         });
 
+        console.log("EvalRun created:", benchmarkEvalRun._id);
+
         const provider = 'hf-user-model';
         const apiConfig = {
             baseURL: sessionModel.baseUrl
@@ -1957,8 +1963,11 @@ export const runBenchmarkSuite = async (req, res) => {
         let passed = 0;
         let failed = 0;
         let totalScore = 0;
+
+        console.log("Starting benchmark loop");
         try {
             for (const testCase of testCasesToRun) {
+                console.log("Running test case:", testCase._id);
                 try {
                     const result = await Promise.race([
                         runEvaluation({
