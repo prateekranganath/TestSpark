@@ -753,21 +753,26 @@ export const testModelWithBenchmark = async (req, res) => {
 export const comprehensiveModelTest = async (req, res) => {
     try {
         const {
-            modelName,
             userPrompt,
             temperature = 0.1,
-            samplesPerBenchmark = 3,
-            client,
-            parameters,
-            apiConfig,
-            provider
+            samplesPerBenchmark = 3
         } = req.body;
 
+        const sessionId = extractSessionId(req);
+        if (!sessionId) return res.status(400).json({ error: "sessionId required" });
+
+        const sessionModel = await requireReadyModel(sessionId, res);
+        if (!sessionModel) return;
+
+        const modelName = sessionModel.modelName;
+        const provider = 'hf-user-model';
+        const apiConfig = { baseURL: sessionModel.baseUrl };
+
         // Validate required fields
-        if (!modelName || !userPrompt) {
+        if (!userPrompt) {
             return res.status(400).json({
                 success: false,
-                message: "Missing required fields: modelName, userPrompt"
+                message: "Missing required field: userPrompt"
             });
         }
 
@@ -858,8 +863,7 @@ export const comprehensiveModelTest = async (req, res) => {
                     evalRunId: evalRun._id,
                     testCaseId: testCase._id,
                     model: modelName,
-                    client,
-                    parameters: parameters || { temperature },
+                    parameters: { temperature },
                     apiConfig,
                     provider
                 });
@@ -929,17 +933,17 @@ export const comprehensiveModelTest = async (req, res) => {
 
         // Test AIME
         for (const testCase of aimeSamples) {
-            await testBenchmarkCase(testCase, 'aime', modelName, evalRun._id, results, client, parameters || { temperature }, apiConfig, provider);
+            await testBenchmarkCase(testCase, 'aime', modelName, evalRun._id, results, { temperature }, apiConfig, provider);
         }
 
         // Test MMLU
         for (const testCase of mmluSamples) {
-            await testBenchmarkCase(testCase, 'mmlu', modelName, evalRun._id, results, client, parameters || { temperature }, apiConfig, provider);
+            await testBenchmarkCase(testCase, 'mmlu', modelName, evalRun._id, results, { temperature }, apiConfig, provider);
         }
 
         // Test MSUR
         for (const testCase of msurSamples) {
-            await testBenchmarkCase(testCase, 'msur', modelName, evalRun._id, results, client, parameters || { temperature }, apiConfig, provider);
+            await testBenchmarkCase(testCase, 'msur', modelName, evalRun._id, results, { temperature }, apiConfig, provider);
         }
 
         // Calculate benchmark accuracies
@@ -1054,13 +1058,12 @@ export const comprehensiveModelTest = async (req, res) => {
 };
 
 // Helper function to test a benchmark case
-async function testBenchmarkCase(testCase, benchmarkType, modelName, evalRunId, results, client, parameters, apiConfig, provider) {
+async function testBenchmarkCase(testCase, benchmarkType, modelName, evalRunId, results, parameters, apiConfig, provider) {
     try {
         const result = await runEvaluation({
             evalRunId: evalRunId,
             testCaseId: testCase._id,
             model: modelName,
-            client,
             parameters,
             apiConfig,
             provider
@@ -1732,7 +1735,7 @@ Output JSON only:
  */
 export const getDashboardStats = async (req, res) => {
     try {
-        const runs = await EvalRun.find().sort({ timestamp: -1 }).limit(100);
+        const runs = await EvalRun.find().sort({ createdAt: -1 }).limit(100);
         
         const totalRuns = runs.length;
         const completedRuns = runs.filter(r => r.summary).length;
@@ -1749,7 +1752,7 @@ export const getDashboardStats = async (req, res) => {
 
         // Recent activity (last 7 days)
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        const recentRuns = runs.filter(r => new Date(r.timestamp) > sevenDaysAgo);
+        const recentRuns = runs.filter(r => new Date(r.createdAt) > sevenDaysAgo);
 
         res.json({
             success: true,
@@ -1759,7 +1762,7 @@ export const getDashboardStats = async (req, res) => {
                 activeRuns,
                 averageAccuracy: `${avgAccuracy.toFixed(1)}%`,
                 recentActivity: recentRuns.length,
-                lastRunTime: runs[0]?.timestamp || null
+                lastRunTime: runs[0]?.createdAt || null
             }
         });
     } catch (error) {
@@ -1777,7 +1780,7 @@ export const getDashboardStats = async (req, res) => {
  */
 export const compareModels = async (req, res) => {
     try {
-        const runs = await EvalRun.find().sort({ timestamp: -1 });
+        const runs = await EvalRun.find().sort({ createdAt: -1 });
         
         // Group by model
         const modelStats = {};
@@ -1804,8 +1807,8 @@ export const compareModels = async (req, res) => {
             }
             
             // Track most recent run
-            if (!modelStats[modelKey].lastRun || new Date(run.timestamp) > new Date(modelStats[modelKey].lastRun)) {
-                modelStats[modelKey].lastRun = run.timestamp;
+            if (!modelStats[modelKey].lastRun || new Date(run.createdAt) > new Date(modelStats[modelKey].lastRun)) {
+                modelStats[modelKey].lastRun = run.createdAt;
             }
         });
         
@@ -1887,12 +1890,14 @@ export const runBenchmarkSuite = async (req, res) => {
                 validOptions: validBenchmarks
             });
         }
+
+        const normalizedBenchmarkType = benchmarkType.toLowerCase();
         
         console.log(`🎯 Running ${benchmarkType} benchmark with session model: ${sessionModel.modelName}`);
         
         // Fetch all test cases for this benchmark
         const testCases = await TestCase.find({ 
-            'metadata.benchmarkType': benchmarkType.toUpperCase() 
+            'metadata.benchmarkType': normalizedBenchmarkType
         });
         
         if (!testCases.length) {
@@ -1914,18 +1919,113 @@ export const runBenchmarkSuite = async (req, res) => {
             console.log(`⚠️  Limiting to first ${maxProblems} problems for demo (total: ${testCases.length})`);
         }
         
-        // TODO: Implement full evaluation loop
-        // For now, return success with metadata
-        
+        // Run full evaluation loop (bounded by maxProblems for render stability)
+        const benchmarkEvalRun = await EvalRun.create({
+            runName: `Benchmark Suite - ${benchmarkType.toUpperCase()} - ${sessionModel.modelName}`,
+            description: `Benchmark suite evaluation for ${benchmarkType.toUpperCase()} using session model`,
+            modelUnderTest: {
+                name: sessionModel.modelName,
+                version: 'latest'
+            },
+            judgeModel: {
+                name: process.env.JUDGE_MODEL || 'gpt-4',
+                version: 'latest'
+            },
+            testCaseIds: testCasesToRun.map(tc => tc._id),
+            configuration: {
+                benchmarkType: benchmarkType.toUpperCase(),
+                maxProblems
+            },
+            tags: ['benchmark-suite', benchmarkType.toLowerCase()],
+            metrics: { totalTestCases: testCasesToRun.length },
+            status: 'running',
+            startTime: new Date()
+        });
+
+        const provider = 'hf-user-model';
+        const apiConfig = {
+            baseURL: sessionModel.baseUrl
+        };
+
+        const startedAt = Date.now();
+        const results = [];
+        let passed = 0;
+        let failed = 0;
+        let totalScore = 0;
+
+        for (const testCase of testCasesToRun) {
+            try {
+                const result = await runEvaluation({
+                    evalRunId: benchmarkEvalRun._id,
+                    testCaseId: testCase._id,
+                    model: sessionModel.modelName,
+                    parameters: { temperature: 0.1 },
+                    apiConfig,
+                    provider
+                });
+
+                const benchmarkEval = result.judgement?.benchmarkEvaluation;
+                const casePassed = benchmarkEval?.pass ?? result.judgement?.passed ?? false;
+                const caseScore = benchmarkEval?.score ?? result.judgement?.score ?? 0;
+
+                if (casePassed) passed++;
+                else failed++;
+                totalScore += caseScore;
+
+                results.push({
+                    testCaseId: testCase._id,
+                    passed: casePassed,
+                    score: caseScore,
+                    benchmarkType: benchmarkEval?.benchmarkType || testCase.metadata?.benchmarkType || benchmarkType.toUpperCase(),
+                    difficulty: benchmarkEval?.severity || testCase.metadata?.difficulty || null,
+                    explanation: benchmarkEval?.explanation || result.judgement?.reasoning || null,
+                    responseTime: result.modelResponse?.responseTime || null
+                });
+            } catch (testError) {
+                failed++;
+                results.push({
+                    testCaseId: testCase._id,
+                    passed: false,
+                    score: 0,
+                    error: testError.message
+                });
+            }
+        }
+
+        const duration = Date.now() - startedAt;
+        const accuracy = testCasesToRun.length > 0
+            ? ((passed / testCasesToRun.length) * 100).toFixed(2)
+            : '0.00';
+        const averageScore = testCasesToRun.length > 0
+            ? (totalScore / testCasesToRun.length).toFixed(3)
+            : '0.000';
+
+        await EvalRun.findByIdAndUpdate(benchmarkEvalRun._id, {
+            status: 'completed',
+            endTime: new Date(),
+            duration,
+            'metrics.totalTestCases': testCasesToRun.length,
+            'metrics.passed': passed,
+            'metrics.failed': failed,
+            'metrics.averageScore': parseFloat(averageScore)
+        });
+
         return res.json({
             success: true,
-            message: `${benchmarkType} benchmark evaluation started`,
-            benchmarkType: benchmarkType,
-            totalProblems: testCases.length,
-            runningProblems: testCasesToRun.length,
+            status: 'completed',
+            benchmarkType: benchmarkType.toUpperCase(),
             modelName: sessionModel.modelName,
-            status: 'started',
-            note: 'Full evaluation implementation coming soon - will run all problems and aggregate results'
+            evalRunId: benchmarkEvalRun._id,
+            summary: {
+                totalAvailableProblems: testCases.length,
+                evaluatedProblems: testCasesToRun.length,
+                passed,
+                failed,
+                accuracy: `${accuracy}%`,
+                averageScore: parseFloat(averageScore),
+                durationMs: duration
+            },
+            results
         });
         
     } catch (error) {
