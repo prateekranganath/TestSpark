@@ -39,8 +39,9 @@ export async function initializeModel(req, res) {
             adapter: null // Future: support LoRA adapters
         };
 
-        // Store model configuration in MongoDB (async)
-        await storeModelConfig(sessionId, modelConfig);
+        // Store model configuration in MongoDB asynchronously
+        storeModelConfig(sessionId, modelConfig)
+            .catch(err => console.error("❌ Store session error:", err));
 
         // Start warmup asynchronously (don't wait)
         console.log(`🤗 Starting warmup for ${modelName}...`);
@@ -55,9 +56,7 @@ export async function initializeModel(req, res) {
                     console.error(`❌ Model ${modelName} warmup failed:`, result.error);
                 }
             })
-            .catch(err => {
-                console.error(`❌ Model ${modelName} warmup error:`, err);
-            });
+            .catch(err => console.error("Warmup error:", err));
 
         // Return immediately with loading status
         return res.status(200).json({

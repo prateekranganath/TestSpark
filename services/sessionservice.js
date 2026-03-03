@@ -22,7 +22,7 @@ export async function storeModelConfig(sessionId, config) {
                 status: 'loading',
                 initializedAt: new Date()
             },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
         console.log(`✅ Stored model config in MongoDB for session ${sessionId}:`, config.modelName);
     } catch (error) {
