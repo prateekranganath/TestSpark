@@ -36,6 +36,14 @@ async function runEvaluation({ evalRunId, testCaseId, model, client, parameters,
             ...parameters // Spread any additional parameters
         });
 
+        if (!response || response.error) {
+            throw new Error(`Model inference failed: ${response?.error || "Unknown error"}`);
+        }
+
+        if (!response.text) {
+            throw new Error("Model returned empty response");
+        }
+
         const responseTime = Date.now() - startTime;
 
         const modelResponse = new ModelResponse({
