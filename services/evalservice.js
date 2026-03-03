@@ -8,8 +8,9 @@ import { mmluValidator } from "../validators/output/mmluvalidator.js";
 import { msurValidator } from "../validators/output/mmsurvalidator.js";
 
 async function runEvaluation({ evalRunId, testCaseId, model, client, parameters, apiConfig, provider }) {
+    let testCaseData;
     try {
-        const testCaseData = await TestCase.findById(testCaseId);
+        testCaseData = await TestCase.findById(testCaseId);
         if (!testCaseData) {
             throw new Error("Test case not found");
         }
@@ -84,7 +85,28 @@ async function runEvaluation({ evalRunId, testCaseId, model, client, parameters,
 
         return { modelResponse, judgement };
     } catch (error) {
-        throw new Error(`Evaluation failed: ${error.message}`);
+
+        console.error("❌ runEvaluation error:", error.message);
+
+        // Save failed response entry
+        const failedResponse = await new ModelResponse({
+            evalRunId,
+            testCaseId,
+            modelName: model,
+            modelVersion: "latest",
+            prompt: testCaseData?.prompt || "",
+            response: "[EVALUATION_ERROR]",
+            responseTime: 0,
+            tokensUsed: { input: 0, output: 0 },
+            status: "failed",
+            error: error.message
+        }).save();
+
+        return {
+            modelResponse: failedResponse,
+            judgement: null,
+            failed: true
+        };
     }
 }
 

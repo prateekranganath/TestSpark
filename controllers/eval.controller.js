@@ -2006,16 +2006,21 @@ export const runBenchmarkSuite = async (req, res) => {
 
                             await EvalRun.findByIdAndUpdate(evalRunId, {
                                 $push: {
-                                    modelResponses: result.modelResponse._id,
-                                    judgements: result.judgement._id
+                                    modelResponses: result.modelResponse?._id,
+                                    ...(result.judgement ? { judgements: result.judgement._id } : {})
                                 },
                                 $inc: {
                                     'metrics.completed': 1,
-                                    'metrics.passed': result.judgement.passed ? 1 : 0,
-                                    'metrics.failed': result.judgement.passed ? 0 : 1
+                                    'metrics.failed': result.failed ? 1 : 0
                                 }
                             });
                         } catch (testError) {
+                            await EvalRun.findByIdAndUpdate(evalRunId, {
+                                $inc: {
+                                    'metrics.completed': 1,
+                                    'metrics.failed': 1
+                                }
+                            });
                             console.error(`  ✗ Failed ${testCase._id}:`, testError.message);
                         }
                     }
