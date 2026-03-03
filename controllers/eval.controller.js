@@ -1060,14 +1060,19 @@ export const comprehensiveModelTest = async (req, res) => {
 // Helper function to test a benchmark case
 async function testBenchmarkCase(testCase, benchmarkType, modelName, evalRunId, results, parameters, apiConfig, provider) {
     try {
-        const result = await runEvaluation({
-            evalRunId: evalRunId,
-            testCaseId: testCase._id,
-            model: modelName,
-            parameters,
-            apiConfig,
-            provider
-        });
+        const result = await Promise.race([
+            runEvaluation({
+                evalRunId,
+                testCaseId: testCase._id,
+                model: modelName,
+                parameters,
+                apiConfig,
+                provider
+            }),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Evaluation timeout")), 90000)
+            )
+        ]);
 
         const benchEval = result.judgement.benchmarkEvaluation;
         const passed = benchEval ? benchEval.pass : result.judgement.passed;

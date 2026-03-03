@@ -21,7 +21,7 @@ function createClientFromConfig(apiConfig) {
     });
 }
 
-function fetchWithTimeout(url, options, timeout = 30000) {
+function fetchWithTimeout(url, options, timeout = 60000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
 
