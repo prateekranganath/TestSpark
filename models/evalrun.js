@@ -43,6 +43,14 @@ const evalRunSchema = new mongoose.Schema({
         type: String,
         ref: 'TestCase'
     }],
+    modelResponses: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ModelResponse'
+    }],
+    judgements: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Judgement'
+    }],
     metrics: {
         totalTestCases: {
             type: Number,

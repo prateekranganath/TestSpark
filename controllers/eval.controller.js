@@ -1952,6 +1952,7 @@ export const runBenchmarkSuite = async (req, res) => {
         });
 
         console.log("EvalRun created:", benchmarkEvalRun._id);
+        const evalRunId = benchmarkEvalRun._id;
 
         // Immediately respond so request doesn't hang
         res.json({
@@ -1971,9 +1972,6 @@ export const runBenchmarkSuite = async (req, res) => {
                 };
 
                 const startedAt = Date.now();
-                let passed = 0;
-                let failed = 0;
-                let totalScore = 0;
 
                 console.log("Starting benchmark loop");
                 try {
@@ -1982,7 +1980,7 @@ export const runBenchmarkSuite = async (req, res) => {
                         try {
                             const result = await Promise.race([
                                 runEvaluation({
-                                    evalRunId: benchmarkEvalRun._id,
+                                    evalRunId,
                                     testCaseId: testCase._id,
                                     model: sessionModel.modelName,
                                     parameters: { temperature: 0.1 },
@@ -1994,37 +1992,33 @@ export const runBenchmarkSuite = async (req, res) => {
                                 )
                             ]);
 
-                            const benchmarkEval = result.judgement?.benchmarkEvaluation;
-                            const casePassed = benchmarkEval?.pass ?? result.judgement?.passed ?? false;
-                            const caseScore = benchmarkEval?.score ?? result.judgement?.score ?? 0;
-
-                            if (casePassed) passed++;
-                            else failed++;
-                            totalScore += caseScore;
+                            await EvalRun.findByIdAndUpdate(evalRunId, {
+                                $push: {
+                                    modelResponses: result.modelResponse._id,
+                                    judgements: result.judgement._id
+                                },
+                                $inc: {
+                                    'metrics.completed': 1,
+                                    'metrics.passed': result.judgement.passed ? 1 : 0,
+                                    'metrics.failed': result.judgement.passed ? 0 : 1
+                                }
+                            });
                         } catch (testError) {
-                            failed++;
                             console.error(`  ✗ Failed ${testCase._id}:`, testError.message);
                         }
                     }
                 } finally {
                     const duration = Date.now() - startedAt;
-                    const averageScore = testCasesToRun.length > 0
-                        ? (totalScore / testCasesToRun.length).toFixed(3)
-                        : '0.000';
 
-                    await EvalRun.findByIdAndUpdate(benchmarkEvalRun._id, {
+                    await EvalRun.findByIdAndUpdate(evalRunId, {
                         status: 'completed',
                         endTime: new Date(),
-                        duration,
-                        'metrics.totalTestCases': testCasesToRun.length,
-                        'metrics.passed': passed,
-                        'metrics.failed': failed,
-                        'metrics.averageScore': parseFloat(averageScore)
+                        duration
                     });
                 }
             } catch (bgError) {
                 console.error("❌ Background benchmark error:", bgError);
-                await EvalRun.findByIdAndUpdate(benchmarkEvalRun._id, {
+                await EvalRun.findByIdAndUpdate(evalRunId, {
                     status: 'failed'
                 });
             }
