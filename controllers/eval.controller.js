@@ -35,7 +35,7 @@ export const createEvalRun = async (req, res) => {
             description,
             modelUnderTest,
             judgeModel: {
-                name: process.env.JUDGE_MODEL || 'gpt-4',
+                name: process.env.JUDGE_MODEL || 'hf-judge-space',
                 version: 'latest'
             },
             testCaseIds,
@@ -587,7 +587,7 @@ export const testModelWithBenchmark = async (req, res) => {
                 version: 'latest'
             },
             judgeModel: {
-                name: process.env.JUDGE_MODEL || 'gpt-4',
+                name: process.env.JUDGE_MODEL || 'hf-judge-space',
                 version: 'latest'
             },
             testCaseIds: [testCaseId],
@@ -818,7 +818,7 @@ export const comprehensiveModelTest = async (req, res) => {
             runName: `Comprehensive Test - ${modelName} - ${new Date().toISOString()}`,
             description: `Generated tests + All benchmarks test for: ${userPrompt.substring(0, 100)}`,
             modelUnderTest: { name: modelName, version: 'latest' },
-            judgeModel: { name: process.env.JUDGE_MODEL || 'gpt-4', version: 'latest' },
+            judgeModel: { name: process.env.JUDGE_MODEL || 'hf-judge-space', version: 'latest' },
             testCaseIds: [],
             configuration: { temperature },
             tags: ['comprehensive-test', 'generated', 'benchmarks'],
@@ -1277,7 +1277,7 @@ export const testCustomModel = async (req, res) => {
                 version: parameters?.version || 'latest'
             },
             judgeModel: {
-                name: process.env.JUDGE_MODEL || 'gpt-4',
+                name: process.env.JUDGE_MODEL || 'hf-judge-space',
                 version: 'latest'
             },
             testCaseIds: [testCaseId],
@@ -1690,14 +1690,21 @@ Output JSON only:
   "reasoning": "brief explanation"
 }`;
 
+        if (!process.env.HF_JUDGE_SPACE_ENDPOINT) {
+            throw new Error("HF_JUDGE_SPACE_ENDPOINT is not configured");
+        }
+
         const judgeResponse = await llm_call({
-            model: process.env.JUDGE_MODEL || "gpt-4",
+            model: process.env.JUDGE_MODEL || "judge-model",
             messages: [
                 { role: "system", content: "You are an impartial evaluator. Return only valid JSON." },
                 { role: "user", content: judgePrompt }
             ],
             temperature: 0,
-            provider: process.env.HF_JUDGE_SPACE_ENDPOINT ? 'hf-space' : undefined,
+            provider: 'hf-space',
+            apiConfig: {
+                baseURL: process.env.HF_JUDGE_SPACE_ENDPOINT
+            },
             adapter: 'base'
         });
 
@@ -1937,7 +1944,7 @@ export const runBenchmarkSuite = async (req, res) => {
                 version: 'latest'
             },
             judgeModel: {
-                name: process.env.JUDGE_MODEL || 'gpt-4',
+                name: process.env.JUDGE_MODEL || 'hf-judge-space',
                 version: 'latest'
             },
             testCaseIds: testCasesToRun.map(tc => tc._id),
