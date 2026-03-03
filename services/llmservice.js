@@ -21,6 +21,16 @@ function createClientFromConfig(apiConfig) {
     });
 }
 
+function fetchWithTimeout(url, options, timeout = 30000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+
+    return fetch(url, {
+        ...options,
+        signal: controller.signal
+    }).finally(() => clearTimeout(id));
+}
+
 /**
  * Infer using HuggingFace Space for judge models with adapter support
  * @param {String} modelName - HuggingFace model ID (optional for Space)
@@ -58,7 +68,7 @@ async function inferJudgeSpace(modelName, messages, parameters) {
         }
 
         // Call the FastAPI /infer endpoint
-        const response = await fetch(`${hfSpaceEndpoint}/infer`, {
+        const response = await fetchWithTimeout(`${hfSpaceEndpoint}/infer`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
@@ -68,7 +78,7 @@ async function inferJudgeSpace(modelName, messages, parameters) {
                 max_tokens: parameters.max_tokens || 512,
                 top_p: parameters.top_p || 1.0
             })
-        });
+        }, 60000);
 
         if (!response.ok) {
             const errorText = await response.text();
@@ -133,14 +143,14 @@ async function inferUserModelSpace(modelName, messages, parameters) {
 
         // Step 1: Load the model (with optional adapter)
         // The Space will skip reload if model is already loaded
-        const loadResponse = await fetch(`${userModelSpaceEndpoint}/load`, {
+        const loadResponse = await fetchWithTimeout(`${userModelSpaceEndpoint}/load`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
                 model: modelName,
                 adapter: parameters.adapter || null
             })
-        });
+        }, 60000);
 
         if (!loadResponse.ok) {
             const errorText = await loadResponse.text();
@@ -156,7 +166,7 @@ async function inferUserModelSpace(modelName, messages, parameters) {
         console.log(`Model loaded: ${loadResult.status} - ${loadResult.model}${loadResult.adapter ? ' with adapter ' + loadResult.adapter : ''}`);
 
         // Step 2: Run inference
-        const inferResponse = await fetch(`${userModelSpaceEndpoint}/infer`, {
+        const inferResponse = await fetchWithTimeout(`${userModelSpaceEndpoint}/infer`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
@@ -165,7 +175,7 @@ async function inferUserModelSpace(modelName, messages, parameters) {
                 max_tokens: parameters.max_tokens || 512,
                 top_p: parameters.top_p || 1.0
             })
-        });
+        }, 60000);
 
         if (!inferResponse.ok) {
             const errorText = await inferResponse.text();
@@ -360,7 +370,7 @@ async function generateTestCasesFromJudgeSpace(parentPrompt, parameters = {}) {
         }
 
         // Call the FastAPI /generate endpoint
-        const response = await fetch(`${judgeSpaceEndpoint}/generate`, {
+        const response = await fetchWithTimeout(`${judgeSpaceEndpoint}/generate`, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
@@ -368,7 +378,7 @@ async function generateTestCasesFromJudgeSpace(parentPrompt, parameters = {}) {
                 temperature: parameters.temperature || 0.8,
                 max_tokens: parameters.max_tokens || 200
             })
-        });
+        }, 60000);
 
         if (!response.ok) {
             const errorText = await response.text();

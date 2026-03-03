@@ -1952,81 +1952,96 @@ export const runBenchmarkSuite = async (req, res) => {
         let passed = 0;
         let failed = 0;
         let totalScore = 0;
+        try {
+            for (const testCase of testCasesToRun) {
+                try {
+                    const result = await Promise.race([
+                        runEvaluation({
+                            evalRunId: benchmarkEvalRun._id,
+                            testCaseId: testCase._id,
+                            model: sessionModel.modelName,
+                            parameters: { temperature: 0.1 },
+                            apiConfig,
+                            provider
+                        }),
+                        new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error("Test case timeout")), 90000)
+                        )
+                    ]);
 
-        for (const testCase of testCasesToRun) {
+                    const benchmarkEval = result.judgement?.benchmarkEvaluation;
+                    const casePassed = benchmarkEval?.pass ?? result.judgement?.passed ?? false;
+                    const caseScore = benchmarkEval?.score ?? result.judgement?.score ?? 0;
+
+                    if (casePassed) passed++;
+                    else failed++;
+                    totalScore += caseScore;
+
+                    results.push({
+                        testCaseId: testCase._id,
+                        passed: casePassed,
+                        score: caseScore,
+                        benchmarkType: benchmarkEval?.benchmarkType || testCase.metadata?.benchmarkType || benchmarkType.toUpperCase(),
+                        difficulty: benchmarkEval?.severity || testCase.metadata?.difficulty || null,
+                        explanation: benchmarkEval?.explanation || result.judgement?.reasoning || null,
+                        responseTime: result.modelResponse?.responseTime || null
+                    });
+                } catch (testError) {
+                    failed++;
+                    results.push({
+                        testCaseId: testCase._id,
+                        passed: false,
+                        score: 0,
+                        error: testError.message
+                    });
+                }
+            }
+
+            const duration = Date.now() - startedAt;
+            const accuracy = testCasesToRun.length > 0
+                ? ((passed / testCasesToRun.length) * 100).toFixed(2)
+                : '0.00';
+            const averageScore = testCasesToRun.length > 0
+                ? (totalScore / testCasesToRun.length).toFixed(3)
+                : '0.000';
+
+            return res.json({
+                success: true,
+                status: 'completed',
+                benchmarkType: benchmarkType.toUpperCase(),
+                modelName: sessionModel.modelName,
+                evalRunId: benchmarkEvalRun._id,
+                summary: {
+                    totalAvailableProblems: testCases.length,
+                    evaluatedProblems: testCasesToRun.length,
+                    passed,
+                    failed,
+                    accuracy: `${accuracy}%`,
+                    averageScore: parseFloat(averageScore),
+                    durationMs: duration
+                },
+                results
+            });
+        } finally {
+            const duration = Date.now() - startedAt;
+            const averageScore = testCasesToRun.length > 0
+                ? (totalScore / testCasesToRun.length).toFixed(3)
+                : '0.000';
+
             try {
-                const result = await runEvaluation({
-                    evalRunId: benchmarkEvalRun._id,
-                    testCaseId: testCase._id,
-                    model: sessionModel.modelName,
-                    parameters: { temperature: 0.1 },
-                    apiConfig,
-                    provider
+                await EvalRun.findByIdAndUpdate(benchmarkEvalRun._id, {
+                    status: 'completed',
+                    endTime: new Date(),
+                    duration,
+                    'metrics.totalTestCases': testCasesToRun.length,
+                    'metrics.passed': passed,
+                    'metrics.failed': failed,
+                    'metrics.averageScore': parseFloat(averageScore)
                 });
-
-                const benchmarkEval = result.judgement?.benchmarkEvaluation;
-                const casePassed = benchmarkEval?.pass ?? result.judgement?.passed ?? false;
-                const caseScore = benchmarkEval?.score ?? result.judgement?.score ?? 0;
-
-                if (casePassed) passed++;
-                else failed++;
-                totalScore += caseScore;
-
-                results.push({
-                    testCaseId: testCase._id,
-                    passed: casePassed,
-                    score: caseScore,
-                    benchmarkType: benchmarkEval?.benchmarkType || testCase.metadata?.benchmarkType || benchmarkType.toUpperCase(),
-                    difficulty: benchmarkEval?.severity || testCase.metadata?.difficulty || null,
-                    explanation: benchmarkEval?.explanation || result.judgement?.reasoning || null,
-                    responseTime: result.modelResponse?.responseTime || null
-                });
-            } catch (testError) {
-                failed++;
-                results.push({
-                    testCaseId: testCase._id,
-                    passed: false,
-                    score: 0,
-                    error: testError.message
-                });
+            } catch (finalizeError) {
+                console.error('❌ Failed to finalize benchmark eval run:', finalizeError.message);
             }
         }
-
-        const duration = Date.now() - startedAt;
-        const accuracy = testCasesToRun.length > 0
-            ? ((passed / testCasesToRun.length) * 100).toFixed(2)
-            : '0.00';
-        const averageScore = testCasesToRun.length > 0
-            ? (totalScore / testCasesToRun.length).toFixed(3)
-            : '0.000';
-
-        await EvalRun.findByIdAndUpdate(benchmarkEvalRun._id, {
-            status: 'completed',
-            endTime: new Date(),
-            duration,
-            'metrics.totalTestCases': testCasesToRun.length,
-            'metrics.passed': passed,
-            'metrics.failed': failed,
-            'metrics.averageScore': parseFloat(averageScore)
-        });
-
-        return res.json({
-            success: true,
-            status: 'completed',
-            benchmarkType: benchmarkType.toUpperCase(),
-            modelName: sessionModel.modelName,
-            evalRunId: benchmarkEvalRun._id,
-            summary: {
-                totalAvailableProblems: testCases.length,
-                evaluatedProblems: testCasesToRun.length,
-                passed,
-                failed,
-                accuracy: `${accuracy}%`,
-                averageScore: parseFloat(averageScore),
-                durationMs: duration
-            },
-            results
-        });
         
     } catch (error) {
         console.error('❌ Benchmark suite error:', error);
