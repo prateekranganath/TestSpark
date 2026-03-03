@@ -15,6 +15,7 @@ import {
     getDashboardStats,
     compareModels
 } from '../controllers/eval.controller.js';
+import { getModelConfig } from '../services/sessionservice.js';
 
 const router = express.Router();
 
@@ -46,7 +47,66 @@ router.post('/test-benchmark', testModelWithBenchmark);
 router.post('/comprehensive-test', comprehensiveModelTest);
 
 // Custom dataset evaluation
-router.post('/custom-dataset', customDatasetEval);
+router.post('/custom-dataset', async (req, res) => {
+    try {
+        console.log("📌 CUSTOM DATASET ROUTE HIT");
+        console.log("Query:", req.query);
+        console.log("Body:", req.body);
+
+        const sessionId =
+            req.query.sessionId ||
+            req.headers['x-session-id'] ||
+            req.body.sessionId;
+
+        console.log("🔎 Extracted sessionId:", sessionId);
+
+        if (!sessionId) {
+            return res.status(400).json({
+                success: false,
+                error: "sessionId required"
+            });
+        }
+
+        const session = await getModelConfig(sessionId);
+
+        console.log("🔎 Session from DB:", session);
+
+        if (!session || !session.modelName) {
+            return res.status(400).json({
+                success: false,
+                error: "No model configured for this session"
+            });
+        }
+
+        const { evaluationType, dataset } = req.body;
+
+        console.log("🔎 EvalType:", evaluationType);
+        console.log("🔎 Dataset length:", dataset?.length);
+
+        if (!Array.isArray(dataset)) {
+            return res.status(400).json({
+                success: false,
+                error: "dataset must be array"
+            });
+        }
+
+        // 👇 Temporarily return simple success for debugging
+        return res.json({
+            success: true,
+            debug: true,
+            message: "Route working with valid session + dataset",
+            sessionId,
+            datasetSize: dataset.length
+        });
+
+    } catch (error) {
+        console.error("🔥 CUSTOM DATASET ROUTE ERROR:", error);
+        return res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
 
 // Delete evaluation run
 router.delete('/runs/:evalRunId', deleteEvalRun);
