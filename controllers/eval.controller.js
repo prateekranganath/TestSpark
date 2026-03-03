@@ -735,7 +735,9 @@ export const testModelWithBenchmark = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            data: detailedJudgement
+            testInfo: detailedJudgement.testInfo,
+            modelResponse: detailedJudgement.modelResponse,
+            generalJudgement: detailedJudgement.generalJudgement
         });
 
     } catch (error) {

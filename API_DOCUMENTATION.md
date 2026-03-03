@@ -501,14 +501,16 @@ async function runEvaluation(sessionId, dataset) {
 
 #### 2. Benchmark Testing
 
-**Endpoint:** `POST /api/eval/test-benchmark`
+**Endpoints:**
+- `POST /api/eval/test-benchmark`
+- `POST /api/eval/benchmark` (alias, same behavior)
 
-**Purpose:** Run ALL test cases from a specific benchmark suite (AIME, MMLU, or MSUR).
+**Purpose:** Run a single benchmark test case with full evaluation + judgement.
 
 **⚠️ REQUIREMENTS:**
 - **sessionId is REQUIRED** - Must initialize a model first
 - Session model must be in "ready" state
-- **benchmarkType is REQUIRED** - Which benchmark to run
+- **testCaseId is REQUIRED** - Test case to evaluate
 
 **Query Parameters (REQUIRED):**
 | Parameter | Type | Description |
@@ -518,64 +520,78 @@ async function runEvaluation(sessionId, dataset) {
 **Request Body:**
 ```json
 {
-  "benchmarkType": "AIME"
+  "testCaseId": "tc_aime_problem_123",
+  "temperature": 0.1
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| benchmarkType | string | ✅ Yes | Benchmark to run: `AIME`, `MMLU`, or `MSUR` |
+| testCaseId | string | ✅ Yes | Test case ID to evaluate |
+| temperature | number | ❌ No | Sampling temperature (default: `0.1`) |
 
-**Note:** Model configuration automatically used from session. Runs first 10 problems for demo stability.
+**Note:** Model configuration is automatically used from session.
 
-**Response (Debugging Mode - Temporary):**
+**Response (Success):**
 ```json
 {
   "success": true,
-  "message": "Benchmark route reached successfully",
-  "sessionId": "sess_1709388123456_abc123",
-  "benchmarkType": "AIME",
-  "status": "route_working",
-  "note": "Evaluation logic temporarily disabled for debugging"
+  "testInfo": {
+    "testCaseId": "tc_aime_problem_123",
+    "prompt": "...",
+    "expectedOutput": "...",
+    "benchmarkType": "AIME"
+  },
+  "modelResponse": {
+    "id": "mr_123",
+    "text": "...",
+    "status": "completed"
+  },
+  "generalJudgement": {
+    "id": "jg_123",
+    "score": 8.5,
+    "maxScore": 10,
+    "passed": true,
+    "reasoning": "...",
+    "criteria": ["correctness", "clarity"],
+    "feedback": "..."
+  }
 }
 ```
 
-**Note:** Route is currently in simplified debugging mode to isolate 500 errors. Full evaluation logic will be restored after stability is confirmed.
-
-**Response (Error - Invalid Benchmark):**
+**Response (Error - Missing sessionId):**
 ```json
 {
   "success": false,
-  "error": "Invalid benchmarkType",
-  "received": "INVALID",
-  "validOptions": ["AIME", "MMLU", "MSUR"]
+  "error": "sessionId is required",
+  "message": "Benchmark testing requires an initialized model session"
 }
 ```
 
-**Response (Error - No Test Cases):**
+**Response (Error - Missing testCaseId):**
 ```json
 {
   "success": false,
-  "error": "No test cases found for this benchmark",
-  "benchmarkType": "AIME",
-  "message": "This benchmark may not be loaded in the database yet"
+  "error": "testCaseId is required",
+  "message": "Provide a valid test case ID to run benchmark test"
 }
 ```
 
 **Frontend Example:**
 ```javascript
-async function runBenchmark(sessionId, benchmarkType) {
+async function runBenchmark(sessionId, testCaseId) {
   const response = await fetch(
-    `https://testspark-api.onrender.com/api/eval/test-benchmark?sessionId=${sessionId}`,
+    `https://testspark-api.onrender.com/api/eval/benchmark?sessionId=${sessionId}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ benchmarkType })
+      body: JSON.stringify({ testCaseId })
     }
   );
   
   const data = await response.json();
-  console.log(`Running ${data.totalProblems} problems from ${benchmarkType}`);
+  console.log('Score:', data.generalJudgement?.score);
+  console.log('Model output:', data.modelResponse?.text);
   return data;
 }
 ```
