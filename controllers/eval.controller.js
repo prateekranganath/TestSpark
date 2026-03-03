@@ -1919,7 +1919,7 @@ export const runBenchmarkSuite = async (req, res) => {
         console.log(`📚 Found ${testCases.length} test cases for ${benchmarkType}`);
         
         // Render stability: limit to first 10 problems for demo
-        const maxProblems = 10;
+        const maxProblems = 3;
         const testCasesToRun = testCases.slice(0, maxProblems);
         
         if (testCases.length > maxProblems) {
