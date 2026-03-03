@@ -1992,7 +1992,10 @@ export const runBenchmarkSuite = async (req, res) => {
                                     evalRunId,
                                     testCaseId: testCase._id,
                                     model: sessionModel.modelName,
-                                    parameters: { temperature: 0.1 },
+                                    parameters: {
+                                        temperature: 0.1,
+                                        max_tokens: 128
+                                    },
                                     apiConfig,
                                     provider
                                 }),
