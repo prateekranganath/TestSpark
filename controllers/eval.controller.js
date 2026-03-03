@@ -1694,6 +1694,8 @@ Output JSON only:
             throw new Error("HF_JUDGE_SPACE_ENDPOINT is not configured");
         }
 
+        console.log("HF_JUDGE_SPACE_ENDPOINT:", process.env.HF_JUDGE_SPACE_ENDPOINT);
+
         const judgeResponse = await llm_call({
             model: process.env.JUDGE_MODEL || "judge-model",
             messages: [
