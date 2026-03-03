@@ -115,7 +115,7 @@ export async function checkHFModelStatus(modelName, adapter = null) {
                 max_tokens: 3,
                 top_p: 1.0
             }),
-            signal: AbortSignal.timeout(5000) // 5 seconds
+            signal: AbortSignal.timeout(60000) // 60 seconds
         });
         
         if (response.ok) {
@@ -140,32 +140,24 @@ export async function checkHFModelStatus(modelName, adapter = null) {
             };
         }
         
-        // Other errors
         const errorText = await response.text();
-        console.error(`❌ Model status check error: ${response.status} - ${errorText}`);
+        console.log(`⏳ Model ${modelName} not ready yet: ${response.status}`);
+
         return {
             ready: false,
-            status: "error",
-            message: `Error checking model status: ${errorText}`
+            status: "loading",
+            message: "Model is still initializing...",
+            progress: 70
         };
         
     } catch (err) {
-        // Timeout or connection error = still loading
-        if (err.name === 'AbortError' || err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') {
-            console.log(`⏳ Model ${modelName} status check timed out - still loading`);
-            return {
-                ready: false,
-                status: "loading",
-                message: "Model is still loading in HuggingFace Space...",
-                progress: 65
-            };
-        }
-        
-        console.error(`❌ Model status check error:`, err.message);
+        console.log(`⏳ Model ${modelName} status check issue - treating as loading`);
+
         return {
             ready: false,
-            status: "error",
-            message: `Error checking model status: ${err.message}`
+            status: "loading",
+            message: "Model is still warming up...",
+            progress: 60
         };
     }
 }

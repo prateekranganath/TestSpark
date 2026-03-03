@@ -127,8 +127,27 @@ export async function checkStatus(req, res) {
 
         // Check actual HF Space status
         console.log(`🔍 Checking HF model status: ${modelConfig.modelName}`);
-        
-        const statusResult = await checkHFModelStatus(modelConfig.modelName, modelConfig.adapter);
+
+        let statusResult;
+
+        try {
+            statusResult = await checkHFModelStatus(
+                modelConfig.modelName,
+                modelConfig.adapter
+            );
+        } catch (err) {
+            console.log("⚠️ HF status check timeout — treating as loading");
+
+            return res.status(200).json({
+                success: true,
+                status: "loading",
+                message: "Model still warming up...",
+                modelProvider: modelConfig.modelProvider,
+                modelName: modelConfig.modelName,
+                sessionId,
+                initializedAt: modelConfig.initializedAt
+            });
+        }
         
         if (statusResult.ready) {
             // Update session to mark as ready (async)
