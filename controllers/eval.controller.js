@@ -1953,109 +1953,84 @@ export const runBenchmarkSuite = async (req, res) => {
 
         console.log("EvalRun created:", benchmarkEvalRun._id);
 
-        const provider = 'hf-user-model';
-        const apiConfig = {
-            baseURL: sessionModel.baseUrl
-        };
+        // Immediately respond so request doesn't hang
+        res.json({
+            success: true,
+            status: "started",
+            message: "Benchmark evaluation started",
+            evalRunId: benchmarkEvalRun._id,
+            benchmarkType: benchmarkType.toUpperCase(),
+            modelName: sessionModel.modelName
+        });
 
-        const startedAt = Date.now();
-        const results = [];
-        let passed = 0;
-        let failed = 0;
-        let totalScore = 0;
+        (async () => {
+            try {
+                const provider = 'hf-user-model';
+                const apiConfig = {
+                    baseURL: sessionModel.baseUrl
+                };
 
-        console.log("Starting benchmark loop");
-        try {
-            for (const testCase of testCasesToRun) {
-                console.log("Running test case:", testCase._id);
+                const startedAt = Date.now();
+                let passed = 0;
+                let failed = 0;
+                let totalScore = 0;
+
+                console.log("Starting benchmark loop");
                 try {
-                    const result = await Promise.race([
-                        runEvaluation({
-                            evalRunId: benchmarkEvalRun._id,
-                            testCaseId: testCase._id,
-                            model: sessionModel.modelName,
-                            parameters: { temperature: 0.1 },
-                            apiConfig,
-                            provider
-                        }),
-                        new Promise((_, reject) =>
-                            setTimeout(() => reject(new Error("Test case timeout")), 90000)
-                        )
-                    ]);
+                    for (const testCase of testCasesToRun) {
+                        console.log("Running test case:", testCase._id);
+                        try {
+                            const result = await Promise.race([
+                                runEvaluation({
+                                    evalRunId: benchmarkEvalRun._id,
+                                    testCaseId: testCase._id,
+                                    model: sessionModel.modelName,
+                                    parameters: { temperature: 0.1 },
+                                    apiConfig,
+                                    provider
+                                }),
+                                new Promise((_, reject) =>
+                                    setTimeout(() => reject(new Error("Test case timeout")), 90000)
+                                )
+                            ]);
 
-                    const benchmarkEval = result.judgement?.benchmarkEvaluation;
-                    const casePassed = benchmarkEval?.pass ?? result.judgement?.passed ?? false;
-                    const caseScore = benchmarkEval?.score ?? result.judgement?.score ?? 0;
+                            const benchmarkEval = result.judgement?.benchmarkEvaluation;
+                            const casePassed = benchmarkEval?.pass ?? result.judgement?.passed ?? false;
+                            const caseScore = benchmarkEval?.score ?? result.judgement?.score ?? 0;
 
-                    if (casePassed) passed++;
-                    else failed++;
-                    totalScore += caseScore;
+                            if (casePassed) passed++;
+                            else failed++;
+                            totalScore += caseScore;
+                        } catch (testError) {
+                            failed++;
+                            console.error(`  ✗ Failed ${testCase._id}:`, testError.message);
+                        }
+                    }
+                } finally {
+                    const duration = Date.now() - startedAt;
+                    const averageScore = testCasesToRun.length > 0
+                        ? (totalScore / testCasesToRun.length).toFixed(3)
+                        : '0.000';
 
-                    results.push({
-                        testCaseId: testCase._id,
-                        passed: casePassed,
-                        score: caseScore,
-                        benchmarkType: benchmarkEval?.benchmarkType || testCase.metadata?.benchmarkType || benchmarkType.toUpperCase(),
-                        difficulty: benchmarkEval?.severity || testCase.metadata?.difficulty || null,
-                        explanation: benchmarkEval?.explanation || result.judgement?.reasoning || null,
-                        responseTime: result.modelResponse?.responseTime || null
-                    });
-                } catch (testError) {
-                    failed++;
-                    results.push({
-                        testCaseId: testCase._id,
-                        passed: false,
-                        score: 0,
-                        error: testError.message
+                    await EvalRun.findByIdAndUpdate(benchmarkEvalRun._id, {
+                        status: 'completed',
+                        endTime: new Date(),
+                        duration,
+                        'metrics.totalTestCases': testCasesToRun.length,
+                        'metrics.passed': passed,
+                        'metrics.failed': failed,
+                        'metrics.averageScore': parseFloat(averageScore)
                     });
                 }
-            }
-
-            const duration = Date.now() - startedAt;
-            const accuracy = testCasesToRun.length > 0
-                ? ((passed / testCasesToRun.length) * 100).toFixed(2)
-                : '0.00';
-            const averageScore = testCasesToRun.length > 0
-                ? (totalScore / testCasesToRun.length).toFixed(3)
-                : '0.000';
-
-            return res.json({
-                success: true,
-                status: 'completed',
-                benchmarkType: benchmarkType.toUpperCase(),
-                modelName: sessionModel.modelName,
-                evalRunId: benchmarkEvalRun._id,
-                summary: {
-                    totalAvailableProblems: testCases.length,
-                    evaluatedProblems: testCasesToRun.length,
-                    passed,
-                    failed,
-                    accuracy: `${accuracy}%`,
-                    averageScore: parseFloat(averageScore),
-                    durationMs: duration
-                },
-                results
-            });
-        } finally {
-            const duration = Date.now() - startedAt;
-            const averageScore = testCasesToRun.length > 0
-                ? (totalScore / testCasesToRun.length).toFixed(3)
-                : '0.000';
-
-            try {
+            } catch (bgError) {
+                console.error("❌ Background benchmark error:", bgError);
                 await EvalRun.findByIdAndUpdate(benchmarkEvalRun._id, {
-                    status: 'completed',
-                    endTime: new Date(),
-                    duration,
-                    'metrics.totalTestCases': testCasesToRun.length,
-                    'metrics.passed': passed,
-                    'metrics.failed': failed,
-                    'metrics.averageScore': parseFloat(averageScore)
+                    status: 'failed'
                 });
-            } catch (finalizeError) {
-                console.error('❌ Failed to finalize benchmark eval run:', finalizeError.message);
             }
-        }
+        })();
+
+        return;
         
     } catch (error) {
         console.error('❌ Benchmark suite error:', error);
