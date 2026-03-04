@@ -72,7 +72,15 @@ const evalRunSchema = new mongoose.Schema({
             type: Number,
             default: 0
         },
+        totalScore: {
+            type: Number,
+            default: 0
+        },
         averageResponseTime: {
+            type: Number,
+            default: 0
+        },
+        totalResponseTime: {
             type: Number,
             default: 0
         },

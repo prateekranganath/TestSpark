@@ -598,6 +598,85 @@ async function runBenchmark(sessionId, testCaseId) {
 
 ---
 
+#### 3. Benchmark Suite (Async Background Run)
+
+**Endpoint:** `POST /api/eval/run-benchmark-suite`
+
+**Purpose:** Run a benchmark suite in background mode. API returns immediately with an `evalRunId`, and evaluation continues asynchronously.
+
+**⚠️ REQUIREMENTS:**
+- **sessionId is REQUIRED** - Must initialize a model first
+- Session model must be in "ready" state
+- **benchmarkType is REQUIRED** - One of `AIME`, `MMLU`, `MSUR`
+
+**Query Parameters (REQUIRED):**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| sessionId | string | Session ID from initialize (REQUIRED) |
+
+**Request Body:**
+```json
+{
+  "benchmarkType": "AIME"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| benchmarkType | string | ✅ Yes | Benchmark suite to run: `AIME`, `MMLU`, or `MSUR` |
+
+**Current Execution Mode:**
+- Runs in background after immediate API response
+- Uses first **3** problems from the selected benchmark (safety cap)
+- Creates an EvalRun and updates status/metrics during execution
+
+**Response (Immediate Start):**
+```json
+{
+  "success": true,
+  "status": "started",
+  "message": "Benchmark evaluation started",
+  "evalRunId": "65f3a1b2c3d4e5f6a7b8c9d0",
+  "benchmarkType": "AIME",
+  "modelName": "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+}
+```
+
+**Track Progress / Completion:**
+- `GET /api/eval/runs/:evalRunId`
+- `GET /api/eval/runs/:evalRunId/results`
+- `GET /api/eval/runs/:evalRunId/benchmark-stats`
+
+**Frontend Example:**
+```javascript
+async function runBenchmarkSuite(sessionId, benchmarkType) {
+  const startRes = await fetch(
+    `https://testspark-api.onrender.com/api/eval/run-benchmark-suite?sessionId=${sessionId}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ benchmarkType })
+    }
+  );
+
+  const started = await startRes.json();
+  const evalRunId = started.evalRunId;
+
+  // Poll run status until completed/failed
+  let status = 'running';
+  while (status === 'running' || status === 'pending') {
+    await new Promise(r => setTimeout(r, 2500));
+    const statusRes = await fetch(`https://testspark-api.onrender.com/api/eval/runs/${evalRunId}`);
+    const statusData = await statusRes.json();
+    status = statusData?.data?.status;
+  }
+
+  return evalRunId;
+}
+```
+
+---
+
 ### Dashboard & Analytics
 
 #### 1. Dashboard Statistics

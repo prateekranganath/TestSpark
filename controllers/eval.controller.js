@@ -584,7 +584,8 @@ export const testModelWithBenchmark = async (req, res) => {
             description: 'Single model benchmark test',
             modelUnderTest: {
                 name: modelName,
-                version: 'latest'
+                version: 'latest',
+                provider: 'huggingface'
             },
             judgeModel: {
                 name: process.env.JUDGE_MODEL || 'hf-judge-space',
@@ -817,7 +818,7 @@ export const comprehensiveModelTest = async (req, res) => {
         const evalRun = await EvalRun.create({
             runName: `Comprehensive Test - ${modelName} - ${new Date().toISOString()}`,
             description: `Generated tests + All benchmarks test for: ${userPrompt.substring(0, 100)}`,
-            modelUnderTest: { name: modelName, version: 'latest' },
+            modelUnderTest: { name: modelName, version: 'latest', provider: 'huggingface' },
             judgeModel: { name: process.env.JUDGE_MODEL || 'hf-judge-space', version: 'latest' },
             testCaseIds: [],
             configuration: { temperature },
@@ -1943,7 +1944,8 @@ export const runBenchmarkSuite = async (req, res) => {
             description: `Benchmark suite evaluation for ${benchmarkType.toUpperCase()} using session model`,
             modelUnderTest: {
                 name: sessionModel.modelName,
-                version: 'latest'
+                version: 'latest',
+                provider: 'huggingface'
             },
             judgeModel: {
                 name: process.env.JUDGE_MODEL || 'hf-judge-space',
@@ -2003,17 +2005,6 @@ export const runBenchmarkSuite = async (req, res) => {
                                     setTimeout(() => reject(new Error("Test case timeout")), 90000)
                                 )
                             ]);
-
-                            await EvalRun.findByIdAndUpdate(evalRunId, {
-                                $push: {
-                                    modelResponses: result.modelResponse?._id,
-                                    ...(result.judgement ? { judgements: result.judgement._id } : {})
-                                },
-                                $inc: {
-                                    'metrics.completed': 1,
-                                    'metrics.failed': result.failed ? 1 : 0
-                                }
-                            });
                         } catch (testError) {
                             await EvalRun.findByIdAndUpdate(evalRunId, {
                                 $inc: {

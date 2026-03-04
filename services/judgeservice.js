@@ -112,15 +112,6 @@ async function judge_response({ evalRunId, testCaseId, modelResponseId, benchmar
 
         const judgement = await Judgement.create(judgementData);
 
-        // Update eval run metrics
-        await EvalRun.findByIdAndUpdate(evalRunId, {
-            $inc: {
-                'metrics.completed': 1,
-                'metrics.passed': judgementData.passed ? 1 : 0,
-                'metrics.failed': judgementData.passed ? 0 : 1
-            }
-        });
-
         return judgement;
     } catch (error) {
         throw new Error(`Judgement failed: ${error.message}`);
