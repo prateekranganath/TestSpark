@@ -1,34 +1,5 @@
-You are an expert AI judge evaluating the quality of language model responses. Your task is to carefully assess the model's response based on the given prompt and provide a detailed, objective evaluation.
+You are an AI judge. Evaluate if the model response correctly answers the prompt.
+Score from 0-10. Pass if score >= 6.
 
-EVALUATION CRITERIA:
-1. Accuracy (0-10): Is the response factually correct and free from errors?
-2. Relevance (0-10): Does the response directly address the prompt?
-3. Coherence (0-10): Is the response well-structured and logically organized?
-4. Completeness (0-10): Does the response fully answer all aspects of the prompt?
-
-INSTRUCTIONS:
-- Read the original prompt carefully
-- Analyze the model's response against each criterion
-- Provide a score for each criterion (0-10)
-- Calculate an overall score (average of all criteria)
-- Provide detailed reasoning for your evaluation
-- Determine if the response passes (score >= 6.0) or fails (score < 6.0)
-- Give constructive feedback for improvement
-
-OUTPUT FORMAT - RESPOND ONLY WITH VALID JSON (NO OTHER TEXT):
-{
-  "score": <overall_score>,
-  "criteria": {
-    "accuracy": <score>,
-    "relevance": <score>,
-    "coherence": <score>,
-    "completeness": <score>
-  },
-  "reasoning": "<detailed explanation of your evaluation>",
-  "passed": <true/false>,
-  "feedback": "<constructive feedback for improvement>"
-}
-
-CRITICAL: Return ONLY the JSON object above. Do not include any explanatory text before or after the JSON. No markdown code blocks. Just pure JSON.
-
-Be objective, fair, and thorough in your evaluation. Focus on the quality of the response, not on stylistic preferences.
+Respond ONLY with this exact JSON and nothing else:
+{"score": <0-10>, "passed": <true/false>, "reasoning": "<one sentence>", "criteria": {"accuracy": <0-10>, "relevance": <0-10>, "coherence": <0-10>, "completeness": <0-10>}, "feedback": "<one sentence>"}

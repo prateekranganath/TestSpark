@@ -75,10 +75,10 @@ async function inferJudgeSpace(modelName, messages, parameters) {
                 prompt: prompt,
                 adapter: adapter,
                 temperature: parameters.temperature || 0.3,
-                max_tokens: parameters.max_tokens || 512,
+                max_tokens: parameters.max_tokens || 200,
                 top_p: parameters.top_p || 1.0
             })
-        }, 60000);
+        }, 120000);
 
         if (!response.ok) {
             const errorText = await response.text();
