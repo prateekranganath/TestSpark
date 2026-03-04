@@ -120,6 +120,36 @@ export async function checkHFModelStatus(modelName, adapter = null) {
         
         if (response.ok) {
             const result = await response.json();
+
+            // Handle Spaces returning 200 with error payload (e.g., "No model loaded")
+            if (result?.error && result.error.toLowerCase().includes('no model loaded')) {
+                console.log(`ℹ️  Model not loaded yet; triggering load for ${modelName}`);
+
+                // Try to load the model and report loading status
+                try {
+                    const loadResp = await fetch(`${HF_USER_MODEL_SPACE_ENDPOINT}/load`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ model: modelName, adapter }),
+                        signal: AbortSignal.timeout(120000)
+                    });
+
+                    if (!loadResp.ok) {
+                        const loadText = await loadResp.text();
+                        console.log(`⚠️  Load call returned ${loadResp.status}: ${loadText}`);
+                    }
+                } catch (loadErr) {
+                    console.log(`⚠️  Load attempt failed: ${loadErr.message}`);
+                }
+
+                return {
+                    ready: false,
+                    status: "loading",
+                    message: "Model load triggered; waiting for readiness...",
+                    progress: 30
+                };
+            }
+
             console.log(`✅ Model ${modelName} is ready`);
             
             return {
