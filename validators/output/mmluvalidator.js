@@ -22,7 +22,7 @@ export const mmluValidator = (modelresponse, testcase) => {
     return {
         validator:   'mmluValidator',
         category:    'multidomain_knowledge',
-        source:      'string_match',
+        source:      'validator',
         pass,
         score:       pass ? 1 : 0,
         confidence:  pass ? 1.0 : 0.0,

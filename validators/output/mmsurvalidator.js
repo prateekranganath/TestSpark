@@ -22,7 +22,7 @@ export const msurValidator = (modelresponse, testcase) => {
     return {
         validator:   'msurValidator',
         category:    'mathematical_reasoning',
-        source:      'string_match',
+        source:      'validator',
         pass,
         score,
         severity:    'hard',
