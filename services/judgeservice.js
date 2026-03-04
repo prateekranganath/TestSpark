@@ -25,93 +25,106 @@ async function judge_response({ evalRunId, testCaseId, modelResponseId, benchmar
             throw new Error("Required data not found");
         }
 
-        const prompt = testCaseData.prompt;
-        // Truncate model response to keep the judge prompt short and avoid HF Space timeouts
-        const response = (modelResponseData.response || '').substring(0, 400);
         const benchmarkType = testCaseData.metadata?.benchmarkType || null;
 
-        let parsed;
+        // ── Fast path: benchmark questions have deterministic validators ──
+        // Skip the LLM judge entirely and derive the judgement from the
+        // validator result. This avoids HF Space timeouts for AIME/MMLU/MSUR.
+        if (benchmarkValidation && benchmarkType) {
+            const pass = !!benchmarkValidation.pass;
+            const score = pass ? 9.0 : 2.0;
+            const explanation =
+                typeof benchmarkValidation.explanation === 'string'
+                    ? benchmarkValidation.explanation
+                    : JSON.stringify(benchmarkValidation.explanation || '');
 
-        // Use HF Space LLM judge
-        console.log('Using HF Space LLM judge');
-        
+            console.log(`⚡ Benchmark validator short-circuit: ${benchmarkType} → pass=${pass}`);
+
+            const judgement = await Judgement.create({
+                evalRunId,
+                modelResponseId,
+                testCaseId,
+                judgeModel: 'benchmark-validator',
+                score,
+                reasoning: explanation || (pass ? 'Correct answer per benchmark validator.' : 'Incorrect answer per benchmark validator.'),
+                criteria: {
+                    accuracy:     pass ? 9 : 2,
+                    relevance:    9,
+                    coherence:    9,
+                    completeness: pass ? 9 : 2
+                },
+                passed: pass,
+                feedback: explanation || (pass ? 'Answer matches expected output.' : 'Answer does not match expected output.'),
+                benchmarkEvaluation: {
+                    benchmarkType,
+                    validator:   benchmarkValidation.validator   || `${benchmarkType}Validator`,
+                    category:    benchmarkValidation.category    || null,
+                    pass,
+                    score:       benchmarkValidation.score       ?? (pass ? 1.0 : 0.0),
+                    confidence:  benchmarkValidation.confidence  ?? null,
+                    severity:    benchmarkValidation.severity    ?? null,
+                    explanation,
+                    source:      benchmarkValidation.source      || null
+                }
+            });
+
+            return judgement;
+        }
+
+        // ── Slow path: no validator → call the LLM judge ──
+        const prompt = testCaseData.prompt;
+        const response = (modelResponseData.response || '').substring(0, 400);
+
+        console.log('No benchmark validator — using HF Space LLM judge');
+
         const judgePrompt = `${JUDGE_PROMPT}\n\nORIGINAL PROMPT:\n${prompt}\n\nMODEL RESPONSE:\n${response}`;
 
-        // Determine adapter based on benchmark type
-        const adapter = getAdapterForBenchmark(benchmarkType || 'general');
-        
-        // Use HF Space for judge if configured, otherwise use standard API
+        const adapter = getAdapterForBenchmark('general');
+
         const judgeCallParams = {
-            model: evalRun.judgeModel.name || process.env.JUDGE_MODEL || "gpt-4",
-            messages: [{ "role": "user", "content": judgePrompt }],
-            temperature: 0.3
+            model: evalRun.judgeModel.name || process.env.JUDGE_MODEL || 'gpt-4',
+            messages: [{ role: 'user', content: judgePrompt }],
+            temperature: 0.3,
+            max_tokens: 200
         };
 
-        // Add HF Space provider if endpoint is configured
         if (process.env.HF_JUDGE_SPACE_ENDPOINT) {
             judgeCallParams.provider = 'hf-space';
-            judgeCallParams.adapter = adapter;
+            judgeCallParams.adapter  = adapter;
         }
 
         const judgementResult = await llm_call(judgeCallParams);
 
-        // Extract JSON from response (handles cases where LLM adds extra text)
+        let parsed;
         try {
-            // Try direct parse first
             parsed = JSON.parse(judgementResult.text);
         } catch (e) {
-            // Try to extract JSON from markdown code blocks or text
             const jsonMatch = judgementResult.text.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 parsed = JSON.parse(jsonMatch[0]);
             } else {
-                // Fallback: create default judgement if no valid JSON found
-                console.error("Failed to parse judgement, using fallback:", judgementResult.text);
+                console.error('Failed to parse judgement, using fallback:', judgementResult.text);
                 parsed = {
                     score: 5.0,
                     criteria: { accuracy: 5, relevance: 5, coherence: 5, completeness: 5 },
-                    reasoning: "Unable to parse judge response. Original response: " + judgementResult.text.substring(0, 200),
+                    reasoning: 'Unable to parse judge response: ' + judgementResult.text.substring(0, 200),
                     passed: false,
-                    feedback: "Judge model did not return valid JSON format"
+                    feedback: 'Judge model did not return valid JSON format'
                 };
             }
         }
 
-        // Prepare judgement data
-        const judgementData = {
-            evalRunId: evalRunId,
-            modelResponseId: modelResponseId,
-            testCaseId: testCaseId,
+        const judgement = await Judgement.create({
+            evalRunId,
+            modelResponseId,
+            testCaseId,
             judgeModel: evalRun.judgeModel.name,
-            score: parsed.score,
+            score:     parsed.score,
             reasoning: parsed.reasoning,
-            criteria: parsed.criteria,
-            passed: parsed.passed,
-            feedback: parsed.feedback
-        };
-
-        // Add benchmark evaluation if present
-        if (benchmarkValidation) {
-            judgementData.benchmarkEvaluation = {
-                benchmarkType: testCaseData.metadata?.benchmarkType || null,
-                validator: benchmarkValidation.validator,
-                category: benchmarkValidation.category,
-                pass: benchmarkValidation.pass,
-                score: benchmarkValidation.score,
-                confidence: benchmarkValidation.confidence,
-                severity: benchmarkValidation.severity,
-                explanation: benchmarkValidation.explanation,
-                source: benchmarkValidation.source
-            };
-            
-            // Override general judgement if benchmark validation failed
-            if (benchmarkValidation.pass === false) {
-                judgementData.passed = false;
-                judgementData.feedback = `Benchmark validation failed: ${JSON.stringify(benchmarkValidation.explanation)}`;
-            }
-        }
-
-        const judgement = await Judgement.create(judgementData);
+            criteria:  parsed.criteria,
+            passed:    parsed.passed,
+            feedback:  parsed.feedback
+        });
 
         return judgement;
     } catch (error) {

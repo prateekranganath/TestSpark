@@ -1,69 +1,33 @@
-import { llm_call, getAdapterForBenchmark } from '../../services/llmservice.js';
+// Deterministic MSUR validator — no LLM call for simplified short-answer questions.
+// Uses normalised string matching; pass if expected answer appears in the response.
 
-export const msurValidator = async (modelresponse, testcase) => {
-  const response = modelresponse.Response;
-  const question = testcase.Question;
-  const expected = testcase.ExpectedResponse;
-
-  const judge_prompt = `
-You are grading an undergraduate research-level mathematics response.
-
-Problem:
-${question}
-
-Expected Solution Outline:
-${expected}
-
-Model Response:
-${response}
-
-Rubric:
-- 1.0: Fully correct, logically sound, well-justified
-- 0.5: Partially correct but missing steps or clarity
-- 0.0: Incorrect or invalid reasoning
-
-Instructions:
-- Evaluate mathematical correctness, not style.
-- Do not be lenient on false statements.
-- Return a score and justification.
-
-Output JSON ONLY:
-{
-  "score": 0.0 | 0.5 | 1.0,
-  "verdict": "incorrect | partial | correct",
-  "issues": ["list of issues if any"]
+function normalise(str) {
+    return String(str)
+        .toLowerCase()
+        .replace(/[^a-z0-9\/\.]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
-`;
 
-  const messages = [
-    { role: "system", content: "You are an expert mathematics grader." },
-    { role: "user", content: judge_prompt }
-  ];
+export const msurValidator = (modelresponse, testcase) => {
+    const rawResponse = modelresponse.response || modelresponse.Response || '';
+    const expected    = String(testcase.ExpectedResponse ?? testcase.expected_answer ?? '');
 
-  const adapter = getAdapterForBenchmark('msur');
+    const normResp = normalise(rawResponse);
+    const normExp  = normalise(expected);
 
-  const llm_response = await llm_call({
-    messages,
-    model: process.env.JUDGE_MODEL,
-    temperature: 0,
-    provider: 'hf-space',
-    adapter: adapter
-  });
+    const pass = normExp.length > 0 && (normResp.includes(normExp) || normExp.includes(normResp));
+    const score = pass ? 1.0 : 0.0;
 
-  let parsed;
-  try {
-    parsed = JSON.parse(llm_response.text);
-  } catch {
-    parsed = { score: 0.0, verdict: "invalid", issues: ["Unparseable judge response"] };
-  }
-
-  return {
-    validator: "msurValidator",
-    category: "mathematical_reasoning",
-    source: "judge_model",
-    pass: parsed.score === 1.0,
-    score: parsed.score,
-    severity: "hard",
-    explanation: parsed
-  };
+    return {
+        validator:   'msurValidator',
+        category:    'mathematical_reasoning',
+        source:      'string_match',
+        pass,
+        score,
+        severity:    'hard',
+        explanation: pass
+            ? `Response contains expected answer: "${expected}"`
+            : `Expected "${expected}" not found in response`
+    };
 };
