@@ -5,6 +5,14 @@ const defaultOllamaClient = process.env.NODE_ENV === 'development'
     ? new OpenAI({ baseURL: 'http://localhost:11434/v1', apiKey: 'ollama' })
     : null;
 
+// Default OpenAI client when OPENAI_API_KEY is available (covers hosted runs)
+const defaultOpenAIClient = process.env.OPENAI_API_KEY
+    ? new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        baseURL: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1"
+    })
+    : null;
+
 /**
  * Create API client from configuration
  * @param {Object} apiConfig - API configuration { baseURL, apiKey }
@@ -262,13 +270,15 @@ async function adapter(client, model, parameters) {
             client = createClientFromConfig(apiConfig);
         }
 
-        // Fallback to default client (dev only)
+        // Fallback to default client (prefers OpenAI env, then local Ollama)
         if (!client) {
-            if (defaultOllamaClient) {
+            if (defaultOpenAIClient) {
+                client = defaultOpenAIClient;
+            } else if (defaultOllamaClient) {
                 client = defaultOllamaClient;
                 model = model || "llama3.2";
             } else {
-                throw new Error("No API client available. Provide apiConfig or configure HF_SPACE_ENDPOINT");
+                throw new Error("No API client available. Provide apiConfig or set OPENAI_API_KEY/OPENAI_BASE_URL");
             }
         }
 

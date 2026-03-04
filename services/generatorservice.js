@@ -22,9 +22,8 @@ export async function generateTestCases({
     const parentPrompt = parent.prompt;
     const generatedCases = [];
 
-    // If Judge Space is available and all three types are requested, use it for efficient batch generation
-    if (useJudgeSpace && types.length === 3 && 
-        types.includes('ambiguity') && types.includes('contradiction') && types.includes('negation')) {
+    // Try Judge Space when requested for any subset of the three patterns
+    if (useJudgeSpace) {
         
         try {
             console.log('Using Judge Space for efficient batch generation...');
