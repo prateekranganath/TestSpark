@@ -2001,18 +2001,16 @@ export const runBenchmarkSuite = async (req, res) => {
                                     apiConfig,
                                     provider
                                 }),
+                                // 150s: ~25s inference + ~90s judge + buffer
                                 new Promise((_, reject) =>
-                                    setTimeout(() => reject(new Error("Test case timeout")), 90000)
+                                    setTimeout(() => reject(new Error("Test case timeout after 150s")), 150000)
                                 )
                             ]);
                         } catch (testError) {
-                            await EvalRun.findByIdAndUpdate(evalRunId, {
-                                $inc: {
-                                    'metrics.completed': 1,
-                                    'metrics.failed': 1
-                                }
-                            });
-                            console.error(`  ✗ Failed ${testCase._id}:`, testError.message);
+                            // Do NOT increment metrics here — runEvaluation is still running
+                            // in the background and will update metrics itself when it finishes.
+                            // Adding increments here causes double-counting.
+                            console.error(`  ✗ Timeout/error for ${testCase._id}:`, testError.message);
                         }
                     }
                 } finally {

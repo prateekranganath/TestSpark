@@ -26,7 +26,8 @@ async function judge_response({ evalRunId, testCaseId, modelResponseId, benchmar
         }
 
         const prompt = testCaseData.prompt;
-        const response = modelResponseData.response;
+        // Truncate model response to keep the judge prompt short and avoid HF Space timeouts
+        const response = (modelResponseData.response || '').substring(0, 400);
         const benchmarkType = testCaseData.metadata?.benchmarkType || null;
 
         let parsed;
