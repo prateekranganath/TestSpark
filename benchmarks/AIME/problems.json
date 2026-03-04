@@ -1,117 +1,66 @@
-[
+[ 
   {
     "id": "AIME-01",
-    "problem": "Find the number of ordered pairs of integers (x, y) such that x^2 + y^2 = 25.",
-    "answer": 12,
+    "problem": "Compute 17 + 25.",
+    "answer": 42,
     "difficulty": "easy",
-    "topic": "number theory / coordinate geometry",
-    "solution_outline": "List all integer lattice points on the circle of radius 5 centered at the origin."
+    "topic": "arithmetic",
+    "solution_outline": "Add the two integers directly."
   },
   {
     "id": "AIME-02",
-    "problem": "A sequence is defined by a_1 = 1, a_2 = 2, and a_n = a_{n-1} + a_{n-2} for n ≥ 3. Find a_10.",
-    "answer": 55,
+    "problem": "Solve for x: 3x = 27.",
+    "answer": 9,
     "difficulty": "easy",
-    "topic": "recurrence relations",
-    "solution_outline": "This is the Fibonacci sequence; compute terms iteratively."
+    "topic": "algebra",
+    "solution_outline": "Divide both sides by 3."
   },
   {
     "id": "AIME-03",
-    "problem": "How many positive integers less than 1000 are divisible by 3 or 5 but not both?",
-    "answer": 400,
-    "difficulty": "medium",
-    "topic": "inclusion-exclusion",
-    "solution_outline": "Count multiples of 3, multiples of 5, subtract twice the multiples of 15."
+    "problem": "What is 12 squared?",
+    "answer": 144,
+    "difficulty": "easy",
+    "topic": "arithmetic",
+    "solution_outline": "Compute 12 × 12."
   },
   {
     "id": "AIME-04",
-    "problem": "In triangle ABC, AB = AC = 13 and BC = 10. Find the area of triangle ABC.",
-    "answer": 60,
-    "difficulty": "medium",
-    "topic": "geometry",
-    "solution_outline": "Drop an altitude from A; use the Pythagorean theorem to find height."
+    "problem": "Find the greatest common divisor of 18 and 24.",
+    "answer": 6,
+    "difficulty": "easy",
+    "topic": "number theory",
+    "solution_outline": "List factors or use Euclid's algorithm."
   },
   {
     "id": "AIME-05",
-    "problem": "Find the number of positive divisors of 2^4 · 3^3 · 5^2.",
-    "answer": 60,
+    "problem": "A rectangle has length 8 and width 5. Find its area.",
+    "answer": 40,
     "difficulty": "easy",
-    "topic": "number theory",
-    "solution_outline": "Use the divisor-counting formula: (4+1)(3+1)(2+1)."
+    "topic": "geometry",
+    "solution_outline": "Area = length × width."
   },
   {
     "id": "AIME-06",
-    "problem": "A fair six-sided die is rolled three times. Find the probability that the sum of the rolls is 10, expressed as a fraction p/q. Compute p + q.",
-    "answer": 27,
-    "difficulty": "medium",
-    "topic": "probability",
-    "solution_outline": "Enumerate all ordered triples summing to 10; divide by 6^3."
+    "problem": "How many even numbers are there from 2 to 20 inclusive?",
+    "answer": 10,
+    "difficulty": "easy",
+    "topic": "counting",
+    "solution_outline": "Sequence is 2,4,...,20 with 10 terms."
   },
   {
     "id": "AIME-07",
-    "problem": "Find the smallest positive integer n such that n leaves a remainder of 1 when divided by 2, 3, 4, 5, and 6.",
-    "answer": 61,
-    "difficulty": "medium",
-    "topic": "modular arithmetic",
-    "solution_outline": "Solve n ≡ 1 (mod lcm(2,3,4,5,6)) and add 1."
+    "problem": "If y = 2x + 1, find y when x = 7.",
+    "answer": 15,
+    "difficulty": "easy",
+    "topic": "algebra",
+    "solution_outline": "Substitute x = 7 into the expression."
   },
   {
     "id": "AIME-08",
-    "problem": "The equation x^2 - 4x + k = 0 has two distinct integer solutions. Find the sum of all possible values of k.",
-    "answer": 20,
-    "difficulty": "hard",
-    "topic": "algebra",
-    "solution_outline": "Let roots be integers; use Vieta’s formulas to enumerate valid pairs."
+    "problem": "What is the remainder when 29 is divided by 5?",
+    "answer": 4,
+    "difficulty": "easy",
+    "topic": "modular arithmetic",
+    "solution_outline": "29 = 5*5 + 4."
   }
-  ,
-  {
-    "id": "AIME-H-01",
-    "problem": "Find the number of positive integers n ≤ 2024 that can be written as the sum of two or more consecutive positive integers.",
-    "answer": 1676,
-    "difficulty": "hard",
-    "topic": "number theory",
-    "solution_outline": "An integer can be written as a sum of ≥2 consecutive positive integers iff it is not a power of 2. Count non-powers of 2 up to 2024."
-  },
-  {
-    "id": "AIME-H-02",
-    "problem": "How many ordered triples (x, y, z) of integers satisfy x + y + z = 10 and x^2 + y^2 + z^2 = 38?",
-    "answer": 12,
-    "difficulty": "hard",
-    "topic": "algebra / systems",
-    "solution_outline": "Use (x+y+z)^2 = x^2+y^2+z^2 + 2(xy+yz+zx) to compute pairwise products, then enumerate integer solutions."
-  },
-  {
-    "id": "AIME-H-03",
-    "problem": "Let f(x) = x^4 + ax^3 + bx^2 + ax + 1. Given that all roots of f(x) are real, find the minimum possible value of b.",
-    "answer": 6,
-    "difficulty": "hard",
-    "topic": "polynomials",
-    "solution_outline": "Exploit symmetry: write the polynomial in terms of x + 1/x and analyze the discriminant for reality of roots."
-  },
-  {
-    "id": "AIME-H-04",
-    "problem": "In triangle ABC, angle C = 90°, and the circle with diameter AB intersects AC at D and BC at E. If AC = 20 and BC = 21, find the area of quadrilateral CDED.",
-    "answer": 105,
-    "difficulty": "hard",
-    "topic": "geometry",
-    "solution_outline": "Use coordinate geometry or similar triangles with the circle diameter property to find segment lengths and area."
-  },
-  {
-    "id": "AIME-H-05",
-    "problem": "A fair coin is flipped repeatedly until the pattern HHT appears for the first time. Find the expected number of flips required.",
-    "answer": 8,
-    "difficulty": "hard",
-    "topic": "probability / Markov chains",
-    "solution_outline": "Set up states based on partial matches (none, H, HH) and solve a system of linear equations."
-  },
-  {
-    "id": "AIME-H-06",
-    "problem": "Find the number of positive integers n less than 1000 for which gcd(n, 1000) = 125.",
-    "answer": 32,
-    "difficulty": "hard",
-    "topic": "number theory",
-    "solution_outline": "Write n = 125k and require gcd(k, 8) = 1 with k < 8; count valid residues."
-  }
-
-
 ]

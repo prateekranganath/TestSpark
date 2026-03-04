@@ -2018,11 +2018,26 @@ export const runBenchmarkSuite = async (req, res) => {
                 } finally {
                     const duration = Date.now() - startedAt;
 
+                    // Read final totals and compute averages before writing status
+                    const finalRun = await EvalRun.findById(evalRunId).lean();
+                    const completed = finalRun?.metrics?.completed || 0;
+                    const avgScore = completed > 0
+                        ? (finalRun.metrics.totalScore || 0) / completed
+                        : 0;
+                    const avgTime = completed > 0
+                        ? (finalRun.metrics.totalResponseTime || 0) / completed
+                        : 0;
+
                     await EvalRun.findByIdAndUpdate(evalRunId, {
-                        status: 'completed',
-                        endTime: new Date(),
-                        duration
+                        $set: {
+                            status: 'completed',
+                            endTime: new Date(),
+                            duration,
+                            'metrics.averageScore': Math.round(avgScore * 100) / 100,
+                            'metrics.averageResponseTime': Math.round(avgTime)
+                        }
                     });
+                    console.log(`✅ Benchmark suite done. completed=${completed} avg_score=${avgScore.toFixed(2)} avg_time=${Math.round(avgTime)}ms`);
                 }
             } catch (bgError) {
                 console.error("❌ Background benchmark error:", bgError);

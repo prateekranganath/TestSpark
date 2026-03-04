@@ -1,82 +1,82 @@
 [
   {
-    "id": "MMLU-H-01",
+    "id": "MMLU-E-01",
     "domain": "mathematics",
-    "subcategory": "linear algebra",
-    "question": "Let A be a 3×3 real matrix such that A^2 = A and rank(A) = 2. What is the trace of A?",
-    "answer": 2,
-    "difficulty": "hard",
+    "subcategory": "arithmetic",
+    "question": "What is 9 + 6?",
+    "answer": 15,
+    "difficulty": "easy",
     "evaluation_type": "exact_match",
-    "solution_outline": "An idempotent matrix has eigenvalues 0 or 1. Rank equals number of 1s, and trace equals sum of eigenvalues."
+    "solution_outline": "Add the two numbers."
   },
   {
-    "id": "MMLU-H-02",
+    "id": "MMLU-E-02",
     "domain": "physics",
-    "subcategory": "classical mechanics",
-    "question": "A particle moves in one dimension under the potential V(x) = kx^4. Which of the following best describes the dependence of the oscillation period T on the total energy E?",
-    "answer": "T ∝ E^(-1/4)",
-    "difficulty": "hard",
-    "evaluation_type": "expression_match",
-    "solution_outline": "Use dimensional analysis or compute T = ∫ dx / v(x); velocity scales as E^(1/2) and turning point as E^(1/4)."
+    "subcategory": "units",
+    "question": "What is the SI unit of force?",
+    "answer": "newton",
+    "difficulty": "easy",
+    "evaluation_type": "string_match",
+    "solution_outline": "Force is measured in newtons (N)."
   },
   {
-    "id": "MMLU-H-03",
+    "id": "MMLU-E-03",
     "domain": "computer science",
-    "subcategory": "algorithms",
-    "question": "What is the tightest asymptotic worst-case time complexity for finding the median of an unsorted array of n distinct elements?",
-    "answer": "O(n)",
-    "difficulty": "hard",
+    "subcategory": "basics",
+    "question": "What does CPU stand for?",
+    "answer": "central processing unit",
+    "difficulty": "easy",
     "evaluation_type": "string_match",
-    "solution_outline": "The median can be found using the deterministic linear-time selection algorithm (Median of Medians)."
+    "solution_outline": "Expand the common acronym CPU."
   },
   {
-    "id": "MMLU-H-04",
+    "id": "MMLU-E-04",
     "domain": "economics",
-    "subcategory": "game theory",
-    "question": "In a zero-sum game, what property must the payoff matrix satisfy for a pure-strategy Nash equilibrium to exist?",
-    "answer": "Existence of a saddle point",
-    "difficulty": "hard",
+    "subcategory": "basics",
+    "question": "If price increases and demand falls, this follows which law?",
+    "answer": "law of demand",
+    "difficulty": "easy",
     "evaluation_type": "string_match",
-    "solution_outline": "A pure-strategy equilibrium exists iff the maximin equals the minimax value."
+    "solution_outline": "The law of demand states quantity demanded generally falls as price rises."
   },
   {
-    "id": "MMLU-H-05",
+    "id": "MMLU-E-05",
     "domain": "statistics",
-    "subcategory": "estimation theory",
-    "question": "An estimator θ̂ is unbiased and achieves the Cramér–Rao lower bound. What does this imply about the estimator?",
-    "answer": "It is efficient",
-    "difficulty": "hard",
-    "evaluation_type": "string_match",
-    "solution_outline": "Achieving the CRLB implies minimum variance among unbiased estimators."
-  },
-  {
-    "id": "MMLU-H-06",
-    "domain": "mathematics",
-    "subcategory": "real analysis",
-    "question": "Let f be differentiable on ℝ and satisfy |f'(x)| ≤ 3 for all x. What is the maximum possible value of |f(5) − f(1)|?",
-    "answer": 12,
-    "difficulty": "hard",
+    "subcategory": "descriptive statistics",
+    "question": "What is the mean of 2, 4, and 6?",
+    "answer": 4,
+    "difficulty": "easy",
     "evaluation_type": "exact_match",
-    "solution_outline": "Apply the Mean Value Theorem: |f(b) − f(a)| ≤ M|b − a|."
+    "solution_outline": "(2 + 4 + 6) / 3 = 4."
   },
   {
-    "id": "MMLU-H-07",
+    "id": "MMLU-E-06",
+    "domain": "mathematics",
+    "subcategory": "algebra",
+    "question": "Solve: x + 5 = 12.",
+    "answer": 7,
+    "difficulty": "easy",
+    "evaluation_type": "exact_match",
+    "solution_outline": "Subtract 5 from both sides."
+  },
+  {
+    "id": "MMLU-E-07",
     "domain": "philosophy",
-    "subcategory": "epistemology",
-    "question": "Which philosophical position holds that knowledge is justified true belief plus an additional condition to avoid counterexamples?",
-    "answer": "Reliabilism",
-    "difficulty": "hard",
+    "subcategory": "logic",
+    "question": "In logic, a statement that is always true is called what?",
+    "answer": "tautology",
+    "difficulty": "easy",
     "evaluation_type": "string_match",
-    "solution_outline": "Reliabilism addresses Gettier problems by requiring a reliable belief-forming process."
+    "solution_outline": "A proposition true under every interpretation is a tautology."
   },
   {
-    "id": "MMLU-H-08",
+    "id": "MMLU-E-08",
     "domain": "machine learning",
-    "subcategory": "theory",
-    "question": "Increasing model capacity while keeping training data fixed typically reduces training error but increases which component of generalization error?",
-    "answer": "Variance",
-    "difficulty": "hard",
+    "subcategory": "basics",
+    "question": "What dataset split is used to tune hyperparameters: train, validation, or test?",
+    "answer": "validation",
+    "difficulty": "easy",
     "evaluation_type": "string_match",
-    "solution_outline": "This is the bias–variance tradeoff."
+    "solution_outline": "Hyperparameters are tuned on the validation set."
   }
 ]

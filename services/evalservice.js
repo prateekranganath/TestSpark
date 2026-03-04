@@ -86,65 +86,23 @@ async function runEvaluation({ evalRunId, testCaseId, model, client, parameters,
             benchmarkValidation 
         });
 
-        console.log("Judge output:", judgement);
+        console.log("Judge output:", JSON.stringify({ _id: judgement?._id, score: judgement?.score, passed: judgement?.passed }));
 
-        const passedInc = judgement?.passed ? 1 : 0;
-        const failedInc = judgement?.passed ? 0 : 1;
-        const scoreInc = Number(judgement?.score) || 0;
-        const pushModelResponses = [modelResponse._id];
-        const pushJudgements = judgement?._id ? [judgement._id] : [];
-
-        await EvalRun.findByIdAndUpdate(evalRunId, [
-            {
-                $set: {
-                    modelResponses: {
-                        $concatArrays: [
-                            { $ifNull: ["$modelResponses", []] },
-                            pushModelResponses
-                        ]
-                    },
-                    judgements: {
-                        $concatArrays: [
-                            { $ifNull: ["$judgements", []] },
-                            pushJudgements
-                        ]
-                    },
-                    'metrics.completed': {
-                        $add: [{ $ifNull: ['$metrics.completed', 0] }, 1]
-                    },
-                    'metrics.passed': {
-                        $add: [{ $ifNull: ['$metrics.passed', 0] }, passedInc]
-                    },
-                    'metrics.failed': {
-                        $add: [{ $ifNull: ['$metrics.failed', 0] }, failedInc]
-                    },
-                    'metrics.totalScore': {
-                        $add: [{ $ifNull: ['$metrics.totalScore', 0] }, scoreInc]
-                    },
-                    'metrics.totalResponseTime': {
-                        $add: [{ $ifNull: ['$metrics.totalResponseTime', 0] }, responseTime]
-                    }
-                }
-            },
-            {
-                $set: {
-                    'metrics.averageScore': {
-                        $cond: [
-                            { $gt: ['$metrics.completed', 0] },
-                            { $divide: ['$metrics.totalScore', '$metrics.completed'] },
-                            0
-                        ]
-                    },
-                    'metrics.averageResponseTime': {
-                        $cond: [
-                            { $gt: ['$metrics.completed', 0] },
-                            { $divide: ['$metrics.totalResponseTime', '$metrics.completed'] },
-                            0
-                        ]
-                    }
-                }
+        const updateOp = {
+            $push: { modelResponses: modelResponse._id },
+            $inc: {
+                'metrics.completed': 1,
+                'metrics.passed': judgement?.passed ? 1 : 0,
+                'metrics.failed': judgement?.passed ? 0 : 1,
+                'metrics.totalScore': Number(judgement?.score) || 0,
+                'metrics.totalResponseTime': responseTime
             }
-        ]);
+        };
+        if (judgement?._id) {
+            updateOp.$push.judgements = judgement._id;
+        }
+
+        await EvalRun.findByIdAndUpdate(evalRunId, updateOp);
 
         return { modelResponse, judgement };
     } catch (error) {
@@ -173,45 +131,14 @@ async function runEvaluation({ evalRunId, testCaseId, model, client, parameters,
 
         const failedResponseTime = modelResponse?.responseTime || 0;
 
-        await EvalRun.findByIdAndUpdate(evalRunId, [
-            {
-                $set: {
-                    modelResponses: {
-                        $concatArrays: [
-                            { $ifNull: ['$modelResponses', []] },
-                            [failedResponse._id]
-                        ]
-                    },
-                    'metrics.completed': {
-                        $add: [{ $ifNull: ['$metrics.completed', 0] }, 1]
-                    },
-                    'metrics.failed': {
-                        $add: [{ $ifNull: ['$metrics.failed', 0] }, 1]
-                    },
-                    'metrics.totalResponseTime': {
-                        $add: [{ $ifNull: ['$metrics.totalResponseTime', 0] }, failedResponseTime]
-                    }
-                }
-            },
-            {
-                $set: {
-                    'metrics.averageScore': {
-                        $cond: [
-                            { $gt: ['$metrics.completed', 0] },
-                            { $divide: [{ $ifNull: ['$metrics.totalScore', 0] }, '$metrics.completed'] },
-                            0
-                        ]
-                    },
-                    'metrics.averageResponseTime': {
-                        $cond: [
-                            { $gt: ['$metrics.completed', 0] },
-                            { $divide: ['$metrics.totalResponseTime', '$metrics.completed'] },
-                            0
-                        ]
-                    }
-                }
+        await EvalRun.findByIdAndUpdate(evalRunId, {
+            $push: { modelResponses: failedResponse._id },
+            $inc: {
+                'metrics.completed': 1,
+                'metrics.failed': 1,
+                'metrics.totalResponseTime': failedResponseTime
             }
-        ]);
+        });
 
         return {
             modelResponse: failedResponse,

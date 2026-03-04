@@ -111,9 +111,11 @@ async function inferJudgeSpace(modelName, messages, parameters) {
  */
 async function inferUserModelSpace(modelName, messages, parameters) {
     try {
-        const userModelSpaceEndpoint = process.env.HF_USER_MODEL_SPACE_ENDPOINT;
+        // Prefer session-provided endpoint (apiConfig.baseURL), fall back to env var
+        const userModelSpaceEndpoint =
+            parameters?.apiConfig?.baseURL || process.env.HF_USER_MODEL_SPACE_ENDPOINT;
         const hfSpaceToken = process.env.HF_SPACE_TOKEN; // Optional for private spaces
-        
+
         if (!userModelSpaceEndpoint) {
             throw new Error("HF_USER_MODEL_SPACE_ENDPOINT not configured. User must provide apiConfig for their own inference endpoint.");
         }
@@ -122,30 +124,32 @@ async function inferUserModelSpace(modelName, messages, parameters) {
             throw new Error("Model name is required for HuggingFace Space inference");
         }
 
-        // Format prompt from messages
-        let prompt = messages.map(m => {
-            if (m.role === 'system') return `System: ${m.content}`;
-            if (m.role === 'user') return `User: ${m.content}`;
+        // Build prompt — prepend a system instruction if none is present so
+        // small chat-tuned models (e.g. TinyLlama-Chat) always return output.
+        const hasSystem = messages.some(m => m.role === 'system');
+        const systemPrefix = hasSystem
+            ? ''
+            : 'System: You are a helpful assistant. Answer the question directly and concisely.\n';
+
+        const prompt = systemPrefix + messages.map(m => {
+            if (m.role === 'system')    return `System: ${m.content}`;
+            if (m.role === 'user')      return `User: ${m.content}`;
             if (m.role === 'assistant') return `Assistant: ${m.content}`;
             return m.content;
         }).join('\n');
 
         // Make request to HF Space endpoint
-        const headers = {
-            'Content-Type': 'application/json'
-        };
-        
+        const headers = { 'Content-Type': 'application/json' };
         if (hfSpaceToken) {
             headers['Authorization'] = `Bearer ${hfSpaceToken}`;
         }
 
-        console.log(`Loading user model: ${modelName} from HF Space...`);
+        console.log(`Loading user model: ${modelName} from HF Space: ${userModelSpaceEndpoint}`);
 
-        // Step 1: Load the model (with optional adapter)
-        // The Space will skip reload if model is already loaded
+        // Step 1: Load the model (Space skips reload if already loaded)
         const loadResponse = await fetchWithTimeout(`${userModelSpaceEndpoint}/load`, {
             method: 'POST',
-            headers: headers,
+            headers,
             body: JSON.stringify({
                 model: modelName,
                 adapter: parameters.adapter || null
@@ -158,37 +162,47 @@ async function inferUserModelSpace(modelName, messages, parameters) {
         }
 
         const loadResult = await loadResponse.json();
-        
         if (loadResult.error) {
             throw new Error(`Model load failed: ${loadResult.error}`);
         }
-
         console.log(`Model loaded: ${loadResult.status} - ${loadResult.model}${loadResult.adapter ? ' with adapter ' + loadResult.adapter : ''}`);
 
-        // Step 2: Run inference
-        const inferResponse = await fetchWithTimeout(`${userModelSpaceEndpoint}/infer`, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-                prompt: prompt,
-                temperature: parameters.temperature || 0.7,
-                max_tokens: parameters.max_tokens || 512,
-                top_p: parameters.top_p || 1.0
-            })
-        }, 60000);
+        // Step 2: Run inference — retry once if the first response is empty
+        const inferBody = JSON.stringify({
+            prompt,
+            temperature: parameters.temperature || 0.7,
+            max_tokens: parameters.max_tokens || 256,
+            top_p: parameters.top_p || 1.0
+        });
 
-        if (!inferResponse.ok) {
-            const errorText = await inferResponse.text();
-            throw new Error(`HF User Model Space infer error: ${inferResponse.statusText} - ${errorText}`);
-        }
+        const runInfer = async () => {
+            const r = await fetchWithTimeout(`${userModelSpaceEndpoint}/infer`, {
+                method: 'POST',
+                headers,
+                body: inferBody
+            }, 60000);
+            if (!r.ok) {
+                const errText = await r.text();
+                throw new Error(`HF User Model Space infer error: ${r.statusText} - ${errText}`);
+            }
+            return r.json();
+        };
 
-        const inferResult = await inferResponse.json();
-        
+        let inferResult = await runInfer();
         if (inferResult.error) {
             throw new Error(`Inference failed: ${inferResult.error}`);
         }
-        
-        // FastAPI returns the response directly
+
+        // Retry once on empty response (can happen on cold paths)
+        if (!inferResult.text || inferResult.text.trim() === '') {
+            console.warn(`⚠️  Empty response from HF Space for model ${modelName}, retrying in 3s...`);
+            await new Promise(r => setTimeout(r, 3000));
+            inferResult = await runInfer();
+            if (inferResult.error) {
+                throw new Error(`Inference failed on retry: ${inferResult.error}`);
+            }
+        }
+
         return {
             text: inferResult.text,
             usage: {

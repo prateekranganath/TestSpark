@@ -3,88 +3,88 @@
     "id": "MSUR-01",
     "domain": "mathematics",
     "subcategory": "number theory",
-    "task_type": "proof",
-    "question": "Prove that there are infinitely many prime numbers congruent to 1 modulo 4.",
-    "expected_answer": "A valid proof using contradiction or Dirichlet's theorem–style reasoning",
-    "difficulty": "hard",
+    "task_type": "short_reasoning",
+    "question": "Is 17 a prime number? Answer yes or no.",
+    "expected_answer": "yes",
+    "difficulty": "easy",
     "evaluation_type": "llm_judged",
-    "solution_outline": "Assume finitely many such primes and construct a number of the form 4k+1 whose prime divisors contradict the assumption."
+    "solution_outline": "17 has no positive divisors other than 1 and 17."
   },
   {
     "id": "MSUR-02",
     "domain": "mathematics",
-    "subcategory": "real analysis",
-    "task_type": "counterexample",
-    "question": "Give an example of a function that is continuous everywhere but differentiable nowhere.",
-    "expected_answer": "A specific valid function such as the Weierstrass function",
-    "difficulty": "hard",
+    "subcategory": "arithmetic",
+    "task_type": "short_reasoning",
+    "question": "What is 15% of 200?",
+    "expected_answer": "30",
+    "difficulty": "easy",
     "evaluation_type": "llm_judged",
-    "solution_outline": "Construct a uniformly convergent series of functions with increasingly oscillatory behavior."
+    "solution_outline": "0.15 × 200 = 30."
   },
   {
     "id": "MSUR-03",
     "domain": "mathematics",
     "subcategory": "linear algebra",
-    "task_type": "construction",
-    "question": "Construct a 3×3 real matrix that is not diagonalizable but has only real eigenvalues.",
-    "expected_answer": "A defective matrix with a repeated eigenvalue",
-    "difficulty": "medium",
+    "task_type": "short_reasoning",
+    "question": "What is the determinant of [[1,0],[0,1]]?",
+    "expected_answer": "1",
+    "difficulty": "easy",
     "evaluation_type": "llm_judged",
-    "solution_outline": "Use a Jordan block with real eigenvalues and insufficient eigenvectors."
+    "solution_outline": "The determinant of the 2×2 identity matrix is 1."
   },
   {
     "id": "MSUR-04",
     "domain": "mathematics",
-    "subcategory": "abstract algebra",
-    "task_type": "proof",
-    "question": "Prove that every finite integral domain is a field.",
-    "expected_answer": "A correct proof using injectivity of multiplication",
-    "difficulty": "medium",
+    "subcategory": "algebra",
+    "task_type": "short_reasoning",
+    "question": "Solve for x: 2x + 3 = 11.",
+    "expected_answer": "4",
+    "difficulty": "easy",
     "evaluation_type": "llm_judged",
-    "solution_outline": "Show that multiplication by a nonzero element is injective and hence surjective."
+    "solution_outline": "Subtract 3, then divide by 2."
   },
   {
     "id": "MSUR-05",
     "domain": "mathematics",
-    "subcategory": "topology",
-    "task_type": "reasoning",
-    "question": "Is every continuous bijection from a compact space to a Hausdorff space a homeomorphism? Justify your answer.",
-    "expected_answer": "Yes, with justification",
-    "difficulty": "hard",
+    "subcategory": "geometry",
+    "task_type": "short_reasoning",
+    "question": "A square has side length 6. What is its perimeter?",
+    "expected_answer": "24",
+    "difficulty": "easy",
     "evaluation_type": "llm_judged",
-    "solution_outline": "Use compactness and the fact that continuous bijections from compact to Hausdorff spaces are closed maps."
+    "solution_outline": "Perimeter = 4 × side."
   },
   {
     "id": "MSUR-06",
     "domain": "mathematics",
     "subcategory": "combinatorics",
-    "task_type": "derivation",
-    "question": "Derive a recurrence relation for the number of binary strings of length n with no two consecutive ones.",
-    "expected_answer": "A Fibonacci-type recurrence",
-    "difficulty": "medium",
+    "task_type": "short_reasoning",
+    "question": "How many subsets does a set with 3 elements have?",
+    "expected_answer": "8",
+    "difficulty": "easy",
     "evaluation_type": "llm_judged",
-    "solution_outline": "Condition on the first bit and count valid continuations."
+    "solution_outline": "A set of size n has 2^n subsets; here n = 3."
   },
   {
     "id": "MSUR-07",
     "domain": "mathematics",
-    "subcategory": "probability theory",
-    "task_type": "analysis",
-    "question": "Show that the expected number of fixed points in a random permutation of n elements is 1.",
-    "expected_answer": "A correct expectation-based argument",
-    "difficulty": "medium",
+    "subcategory": "probability",
+    "task_type": "short_reasoning",
+    "question": "A fair coin is flipped once. What is the probability of heads?",
+    "expected_answer": "1/2",
+    "difficulty": "easy",
     "evaluation_type": "llm_judged",
-    "solution_outline": "Define indicator variables for each element being fixed and apply linearity of expectation."
+    "solution_outline": "Two equally likely outcomes, one favorable."
   },
   {
     "id": "MSUR-08",
     "domain": "mathematics",
     "subcategory": "graph theory",
-    "task_type": "proof_or_counterexample",
-    "question": "Is every bipartite graph planar? Prove or provide a counterexample.",
-    "expected_answer": "A counterexample such as K₃,₃",
-    "difficulty": "medium",
+    "task_type": "short_reasoning",
+    "question": "How many edges does a triangle graph have?",
+    "expected_answer": "3",
+    "difficulty": "easy",
     "evaluation_type": "llm_judged",
-    "solution_outline": "Recall Kuratowski’s theorem and properties of bipartite graphs."
+    "solution_outline": "A triangle is a 3-cycle with 3 edges."
   }
 ]
